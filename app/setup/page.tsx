@@ -265,52 +265,70 @@ export default function SetupPage() {
       );
       
       // No avanzamos automáticamente en caso de error para permitir al usuario intentar nuevamente
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Función para ir al dashboard (redirigir a inicio de sesión primero)
-  const goToDashboard = async () => {
-    setIsLoading(true);
-    setStatus('loading');
-    setMessage('Finalizando configuración...');
     
+    // Guardar el estado de configuración completa en el servidor usando ambos métodos
+    // Intento 1: Usando GET con parámetro
     try {
-      // Guardar el estado de configuración completa en el servidor usando GET con parámetro
-      // Esto evita problemas con servidores que bloquean solicitudes POST
-      const configResponse = await fetch('/api/config/status?complete=true', {
+      const configResponseGet = await fetch('/api/config/status?complete=true', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
-      
-      if (!configResponse.ok) {
-        throw new Error(`Error al guardar el estado de configuración: ${configResponse.status}`);
-      }
-      
-      // Crear una variable en localStorage como marcador client-side
-      localStorage.setItem('setup_completed', 'true');
-      
-      // Redirigir al usuario a la página de inicio de sesión primero
-      router.push('/sign-in?redirect_url=/dashboard');
-    } catch (error) {
-      console.error('Error al finalizar configuración:', error);
-      setStatus('warning');
-      setMessage('Hubo un problema al finalizar la configuración, pero puedes continuar igualmente.');
-      
-      // Intentar redirigir de todos modos después de un tiempo
-      setTimeout(() => {
-        router.push('/sign-in?redirect_url=/dashboard');
-      }, 3000);
+      console.log('Respuesta GET status:', configResponseGet.status);
+    } catch (getError) {
+      console.warn('Error en GET status:', getError);
+      // Continuamos a pesar del error
     }
-  };
+    
+    // Intento 2: Usando POST como alternativa
+    try {
+      const configResponsePost = await fetch('/api/config/status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ configured: true }),
+      });
+      console.log('Respuesta POST status:', configResponsePost.status);
+    } catch (postError) {
+      console.warn('Error en POST status:', postError);
+      // Continuamos a pesar del error
+    }
+    
+    // Mostrar mensaje de éxito
+    setStatus('success');
+    setMessage('Configuración finalizada. Redirigiendo al login...');
+    
+    // Redirigir al usuario después de un breve retraso
+    // Esto permite que el mensaje se muestre antes de la redirección
+    setTimeout(() => {
+      // Forzar redirección usando método alternativo (más confiable en algunos entornos)
+      window.location.href = '/sign-in?redirect_url=/dashboard';
+    }, 2000);
+  } catch (error) {
+    console.error('Error al finalizar configuración:', error);
+    setStatus('warning');
+    setMessage('Hubo un problema al finalizar la configuración, pero puedes continuar igualmente.');
+    
+    // Intentar redirigir de todos modos después de un tiempo usando método alternativo
+    setTimeout(() => {
+      window.location.href = '/sign-in?redirect_url=/dashboard';
+    }, 3000);
+  }
+};
 
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
-        {/* Encabezado con indicador de pasos */}
+return (
+  <div className="flex min-h-screen flex-col items-center justify-center p-4">
+    <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+      {/* Encabezado con indicador de pasos */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-center">Configuración inicial</h1>
+        <div className="flex justify-between mt-4">
+          {[1, 2, 3, 4].map((step) => (
+            <div key={step} className="flex flex-col items-center">
+              <div 
+                className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${currentStep === step ? 'bg-blue-500 text-white' : stepsCompleted[step] ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-center">Configuración inicial</h1>
           <div className="flex justify-between mt-4">
