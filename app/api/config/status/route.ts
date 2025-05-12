@@ -16,12 +16,32 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 /**
- * GET - Obtener el estado actual de configuración
- * Retorna si la aplicación está correctamente configurada
+ * GET - Obtener el estado actual de configuración o marcarlo como completado
+ * Si se proporciona ?complete=true, marca la configuración como completada
+ * Si no, retorna si la aplicación está correctamente configurada
  */
 export async function GET(request: NextRequest) {
   try {
-    // Forzar una verificación fresca ignorando la caché
+    // Obtener parámetros de la URL
+    const { searchParams } = new URL(request.url);
+    const complete = searchParams.get('complete') === 'true';
+    
+    // Si se solicita marcar como completado
+    if (complete) {
+      const success = await markSetupComplete();
+      
+      if (success) {
+        return NextResponse.json({
+          success: true,
+          message: 'La configuración ha sido marcada como completa',
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        throw new Error('No se pudo marcar la configuración como completa');
+      }
+    }
+    
+    // Si no hay parámetros, simplemente verificar el estado
     const isConfigured = await isAppConfigured(true);
     
     return NextResponse.json({
@@ -29,10 +49,10 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error al verificar el estado de configuración:', error);
+    console.error('Error al procesar la solicitud de configuración:', error);
     return NextResponse.json({ 
-      configured: false, 
-      error: error instanceof Error ? error.message : 'Error desconocido al verificar la configuración',
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error desconocido al procesar la configuración',
       timestamp: new Date().toISOString()
     }, { status: 500 });
   }
@@ -41,6 +61,9 @@ export async function GET(request: NextRequest) {
 /**
  * POST - Actualizar el estado de configuración
  * Permite marcar explícitamente que la configuración está completa
+ * 
+ * NOTA: Este método se mantiene como alternativa, pero es preferible
+ * usar GET con parámetro ?complete=true si hay problemas con POST
  */
 export async function POST(request: NextRequest) {
   try {

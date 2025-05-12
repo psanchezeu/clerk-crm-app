@@ -277,13 +277,13 @@ export default function SetupPage() {
     setMessage('Finalizando configuración...');
     
     try {
-      // Guardar el estado de configuración completa en el servidor
-      const configResponse = await fetch('/api/config/status', {
-        method: 'POST',
+      // Guardar el estado de configuración completa en el servidor usando GET con parámetro
+      // Esto evita problemas con servidores que bloquean solicitudes POST
+      const configResponse = await fetch('/api/config/status?complete=true', {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ configured: true }),
       });
       
       if (!configResponse.ok) {
