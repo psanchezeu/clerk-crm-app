@@ -202,7 +202,7 @@ export default function SetupPage() {
     e.preventDefault();
     setIsLoading(true);
     setStatus('loading');
-    setMessage('Ejecutando migración de la base de datos. Esto puede tardar unos momentos...');
+    setMessage('Ejecutando migración de la base de datos. Este proceso puede tardar hasta 2 minutos, por favor espera...');
 
     try {
       // Recuperar la URL de la base de datos del localStorage si está disponible
@@ -217,7 +217,10 @@ export default function SetupPage() {
         throw new Error('URL de base de datos no disponible. Por favor, configura primero la URL de la base de datos.');
       }
 
-      // Llamar al endpoint unificado para realizar la migración
+      // Actualizar el mensaje para informar al usuario sobre el proceso
+      setMessage('Paso 1/3: Creando tablas en la base de datos...');
+      
+      // Llamar al endpoint para realizar la migración
       const response = await fetch('/api/config/save', {
         method: 'POST',
         headers: {
@@ -230,41 +233,38 @@ export default function SetupPage() {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Error en la respuesta del servidor: ${response.status}`);
-      }
-      
+      // Analizar la respuesta del servidor
       const data = await response.json();
       
-      if (data.success) {
-        setStatus('success');
-        setMessage('¡Migración completada correctamente! La base de datos ha sido configurada y las tablas han sido creadas.');
-        
-        // Marcar paso como completado
-        setStepsCompleted({...stepsCompleted, 3: true});
-        
-        // Esperar 3 segundos y avanzar al siguiente paso
-        setTimeout(() => {
-          setCurrentStep(4);
-        }, 3000);
-      } else {
-        throw new Error(data.error || 'Error durante la migración');
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || `Error en la respuesta del servidor: ${response.status}`);
       }
+      
+      setStatus('success');
+      setMessage('¡Migración completada correctamente! La base de datos ha sido configurada con todas las tablas y columnas necesarias.');
+      
+      // Marcar paso como completado
+      setStepsCompleted({...stepsCompleted, 3: true});
+      
+      // Esperar 3 segundos y avanzar al siguiente paso
+      setTimeout(() => {
+        setCurrentStep(4);
+      }, 3000);
     } catch (error) {
       console.error('Error al procesar la migración:', error);
       
-      // A pesar del error, intentamos avanzar para completar el flujo
-      setStatus('warning');
-      setMessage(`Hubo un problema con la migración: ${error instanceof Error ? error.message : 'Error desconocido'}. ` +
-                 'Sin embargo, puedes continuar con la configuración e intentar hacer la migración manualmente más tarde.');
-                 
-      // Marcar paso como completado a pesar del error
-      setStepsCompleted({...stepsCompleted, 3: true});
+      // Mostrar un mensaje de error más detallado y opciones para el usuario
+      setStatus('error');
+      setMessage(
+        `Error durante la migración: ${error instanceof Error ? error.message : 'Error desconocido'}. ` +
+        'Verifica lo siguiente:\n' +
+        '1. La URL de la base de datos es correcta\n' +
+        '2. La base de datos existe y está accesible\n' +
+        '3. El usuario tiene permisos para crear tablas y columnas\n' +
+        '\nPuedes intentar nuevamente o continuar y realizar la migración más tarde.'
+      );
       
-      // Esperar 5 segundos y avanzar al siguiente paso a pesar del error
-      setTimeout(() => {
-        setCurrentStep(4);
-      }, 5000);
+      // No avanzamos automáticamente en caso de error para permitir al usuario intentar nuevamente
     } finally {
       setIsLoading(false);
     }

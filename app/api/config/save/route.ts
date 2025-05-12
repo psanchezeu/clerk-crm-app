@@ -142,52 +142,62 @@ export async function POST(request: NextRequest) {
         try {
           console.log('Ejecutando migración de la base de datos...');
           
-          // Intentar ejecutar db push (más seguro que migrate dev)
-          try {
-            const pushPromise = new Promise((resolve, reject) => {
-              exec('npx prisma db push --accept-data-loss', (error, stdout, stderr) => {
-                if (error) {
-                  console.error(`Error durante db push: ${error.message}`);
-                  console.error(`stderr: ${stderr}`);
-                  reject(error);
-                  return;
-                }
-                console.log(`stdout: ${stdout}`);
-                resolve(stdout);
-              });
+          // Paso 1: Crear todas las tablas con un primer comando
+          console.log('Paso 1: Creando tablas...');
+          const createTableResult = await new Promise((resolve, reject) => {
+            exec('npx prisma db push --accept-data-loss --skip-generate', (error, stdout, stderr) => {
+              if (error) {
+                console.error(`Error durante creación de tablas: ${error.message}`);
+                console.error(`stderr: ${stderr}`);
+                reject(error);
+                return;
+              }
+              console.log(`stdout de creación de tablas: ${stdout}`);
+              resolve(stdout);
             });
-            
-            // Esperar hasta 30 segundos para que se complete
-            const pushResult = await Promise.race([
-              pushPromise,
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 30000))
-            ]);
-            
-            console.log('Migración completada correctamente:', pushResult);
-          } catch (migrationError) {
-            console.error('Error durante la migración:', migrationError);
-          }
+          });
+          console.log('Tablas creadas correctamente');
           
-          // Generar el cliente Prisma
-          try {
-            await new Promise((resolve, reject) => {
-              exec('npx prisma generate', (error, stdout, stderr) => {
-                if (error) {
-                  console.warn(`Advertencia al generar el cliente: ${error.message}`);
-                  console.warn(`stderr: ${stderr}`);
-                  // No rechazamos la promesa para continuar con el flujo
-                  resolve(null);
-                  return;
-                }
-                console.log(`stdout: ${stdout}`);
-                resolve(stdout);
-              });
+          // Paso 2: Ejecutar una migración para asegurar las columnas
+          console.log('Paso 2: Asegurando que todas las columnas se creen correctamente...');
+          const columnResult = await new Promise((resolve, reject) => {
+            // El comando con force-reset es más agresivo pero asegura que todas las columnas se creen
+            exec('npx prisma migrate reset --force --skip-seed', (error, stdout, stderr) => {
+              if (error) {
+                console.error(`Error durante la migración de columnas: ${error.message}`);
+                console.error(`stderr: ${stderr}`);
+                reject(error);
+                return;
+              }
+              console.log(`stdout de migración de columnas: ${stdout}`);
+              resolve(stdout);
             });
-          } catch (generateError) {
-            console.warn('Advertencia al generar el cliente Prisma:', generateError);
-          }
+          });
+          console.log('Columnas creadas correctamente');
+          
+          // Paso 3: Generar el cliente Prisma
+          console.log('Paso 3: Generando cliente Prisma...');
+          const generateResult = await new Promise((resolve, reject) => {
+            exec('npx prisma generate', (error, stdout, stderr) => {
+              if (error) {
+                console.error(`Error al generar el cliente: ${error.message}`);
+                console.error(`stderr: ${stderr}`);
+                reject(error);
+                return;
+              }
+              console.log(`stdout de generación: ${stdout}`);
+              resolve(stdout);
+            });
+          });
+          console.log('Cliente Prisma generado correctamente');
+          
+          console.log('Migración completada exitosamente');
         } catch (migrationError) {
-          console.error('Error general durante la migración:', migrationError);
+          console.error('Error durante la migración:', migrationError);
+          return NextResponse.json({ 
+            success: false, 
+            error: `Error durante la migración: ${migrationError instanceof Error ? migrationError.message : 'Error desconocido'}` 
+          }, { status: 500 });
         }
       }
       
