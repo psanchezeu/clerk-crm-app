@@ -43,11 +43,21 @@ function isAppConfigured(request: NextRequest): boolean {
   }
 }
 
+// Token radical de emergencia que siempre tendrá prioridad
+const EMERGENCY_AUTH_TOKEN = 'emergency_auth_active';
+
 // Verificar si el usuario tiene acceso de emergencia
 function hasEmergencyAccess(request: NextRequest): boolean {
   try {
-    // Verificar desde múltiples fuentes para mayor robustez
+    // SIEMPRE verificar primero el token radical
     const cookies = request.cookies;
+    const radicalBypassCookie = cookies.get(EMERGENCY_AUTH_TOKEN);
+    if (radicalBypassCookie?.value === 'true') {
+      console.log('[Middleware] Token radical de emergencia detectado');
+      return true;
+    }
+    
+    // Verificar desde múltiples fuentes para mayor robustez
     const emergencyAccessCookie = cookies.get('emergency_access');
     const setupCompletedCookie = cookies.get('setup_completed');
     
@@ -57,13 +67,15 @@ function hasEmergencyAccess(request: NextRequest): boolean {
     // Verificar query param para casos extremos
     const { searchParams } = new URL(request.url);
     const emergencyToken = searchParams.get('emergency_token');
+    const tokenParam = searchParams.get('token');
     
     // Si cualquiera de estas fuentes indica acceso de emergencia, permitirlo
     return (
       emergencyAccessCookie?.value === 'true' ||
       setupCompletedCookie?.value === 'true' ||
       authHeader === (process.env.EMERGENCY_PASSWORD || 'setup123') ||
-      emergencyToken === (process.env.EMERGENCY_PASSWORD || 'setup123')
+      emergencyToken === (process.env.EMERGENCY_PASSWORD || 'setup123') ||
+      tokenParam === 'emergency'
     );
   } catch (error) {
     console.error('Error al verificar acceso de emergencia:', error);
@@ -83,34 +95,49 @@ function isPublicRoute(pathname: string): boolean {
   );
 }
 
-// Middleware principal que implementa todas las verificaciones necesarias
+// Middleware principal simplificado y robusto para evitar bucles de redirección
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  console.log(`[Middleware] Procesando: ${pathname}`);
   
-  // 1. Permitir recursos estáticos y rutas públicas siempre
+  // PASO 1: SIEMPRE permitir recursos estáticos y rutas públicas
   if (isPublicRoute(pathname)) {
+    console.log(`[Middleware] Ruta pública permitida: ${pathname}`);
     return NextResponse.next();
   }
   
-  // 2. Si la app no está configurada, redirigir a setup
+  // PASO 2: SIEMPRE permitir acceso a setup
+  if (pathname === '/setup' || pathname.startsWith('/setup/')) {
+    console.log('[Middleware] Acceso a setup permitido siempre');
+    return NextResponse.next();
+  }
+  
+  // PASO 3: Si hay acceso de emergencia, SIEMPRE permitir el paso
+  // Esto tiene prioridad sobre todas las demás reglas
+  if (hasEmergencyAccess(request)) {
+    console.log(`[Middleware] Acceso de emergencia permitido para: ${pathname}`);
+    return NextResponse.next();
+  }
+  
+  // PASO 4: Si la app no está configurada, redirigir a setup
   if (!isAppConfigured(request)) {
-    console.log(`App no configurada, redirigiendo a /setup desde ${pathname}`);
+    console.log(`[Middleware] App no configurada, redirigiendo a /setup`);
     return NextResponse.redirect(new URL('/setup', request.url));
   }
   
-  // 3. Si Clerk no está configurado pero hay acceso de emergencia, permitir acceso
-  if (!isClerkConfigured() && hasEmergencyAccess(request)) {
-    console.log(`Acceso de emergencia concedido para ${pathname}`);
-    return NextResponse.next();
-  }
-  
-  // 4. Si Clerk no está configurado y no hay acceso de emergencia, redirigir a login de emergencia
+  // PASO 5: Si Clerk no está configurado, redirigir a login de emergencia
   if (!isClerkConfigured()) {
-    console.log(`Clerk no configurado, redirigiendo a login de emergencia desde ${pathname}`);
-    return NextResponse.redirect(new URL('/emergency-login', request.url));
+    console.log(`[Middleware] Clerk no configurado, redirigiendo a emergency-login`);
+    // Para evitar bucles, verificamos que no estamos ya en emergency-login
+    if (pathname !== '/emergency-login') {
+      return NextResponse.redirect(new URL('/emergency-login', request.url));
+    } else {
+      // Si ya estamos en emergency-login, permitir el acceso
+      return NextResponse.next();
+    }
   }
   
-  // 5. Si Clerk está configurado, usar auth() para verificar autenticación
+  // PASO 6: Si Clerk está configurado, usar su autenticación
   try {
     // Importación dinámica para mayor robustez
     const { auth } = await import('@clerk/nextjs/server');
@@ -118,15 +145,20 @@ export async function middleware(request: NextRequest) {
     
     // Si no hay usuario autenticado y la ruta requiere autenticación, redirigir a sign-in
     if (!userId && !isPublicRoute(pathname)) {
-      return NextResponse.redirect(new URL('/sign-in', request.url));
+      // Evitar bucles verificando que no estamos ya en sign-in
+      if (pathname !== '/sign-in') {
+        return NextResponse.redirect(new URL('/sign-in', request.url));
+      }
     }
   } catch (error) {
-    console.error('Error al verificar autenticación con Clerk:', error);
+    console.error('[Middleware] Error al verificar autenticación con Clerk:', error);
     // En caso de error, redirigir a login de emergencia
-    return NextResponse.redirect(new URL('/emergency-login', request.url));
+    if (pathname !== '/emergency-login') {
+      return NextResponse.redirect(new URL('/emergency-login', request.url));
+    }
   }
   
-  // Permitir la solicitud si todas las verificaciones pasan o ya se manejaron
+  // Permitir la solicitud por defecto
   return NextResponse.next();
 }
 

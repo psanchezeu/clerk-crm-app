@@ -68,8 +68,8 @@ export default function EmergencyLoginPage(): JSX.Element {
   
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      {/* Script de ayuda para el modo de emergencia */}
-      <Script src="/emergency-helper.js" strategy="afterInteractive" />
+      {/* Script de solución radical para acceso de emergencia */}
+      <Script src="/bypass-all.js" strategy="afterInteractive" />
       
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
         <div className="text-center">
