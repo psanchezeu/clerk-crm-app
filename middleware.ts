@@ -1,29 +1,21 @@
-import { authMiddleware } from "@clerk/nextjs";
+// Implementación de middleware compatible con modo de emergencia
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Rutas que siempre deben ser accesibles independientemente de la configuración
-const setupRoutes = [
+// Rutas que siempre deben ser accesibles, independientemente de la autenticación o configuración
+const publicRoutes = [
+  '/api/bypass-auth',
+  '/emergency-login', 
   '/setup',
   '/api/config/check',
   '/api/config/save',
   '/api/config/save-db', 
   '/api/config/status',
-  '/api/db/migrate'
-];
-
-// Rutas públicas (para Clerk)
-const publicRoutes = [
+  '/api/db/migrate',
   '/',
   '/sign-in',
   '/sign-up',
   '/api/webhook',
-  '/setup',
-  '/api/config/check',
-  '/api/config/save',
-  '/api/config/save-db',
-  '/api/config/status',
-  '/api/db/migrate',
   '/not-found'
 ];
 
@@ -39,7 +31,7 @@ function isClerkConfigured(): boolean {
   }
 }
 
-// Función para verificar configuración de la aplicación a través de cookies
+// Comprobar si la aplicación está configurada (usando cookies)
 function isAppConfigured(request: NextRequest): boolean {
   try {
     const cookies = request.cookies;
@@ -51,57 +43,76 @@ function isAppConfigured(request: NextRequest): boolean {
   }
 }
 
-// Función para el middleware principal de configuración
-function configMiddleware(request: NextRequest) {
+// Verificar si el usuario tiene acceso de emergencia
+function hasEmergencyAccess(request: NextRequest): boolean {
+  try {
+    const cookies = request.cookies;
+    const emergencyAccessCookie = cookies.get('emergency_access');
+    return emergencyAccessCookie?.value === 'true';
+  } catch (error) {
+    console.error('Error al verificar acceso de emergencia:', error);
+    return false;
+  }
+}
+
+// Comprobar si la ruta debe ser accesible públicamente
+function isPublicRoute(pathname: string): boolean {
+  return publicRoutes.some(route => 
+    pathname === route || 
+    pathname.startsWith(route + '/') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon.ico') ||
+    pathname.startsWith('/images') ||
+    pathname.endsWith('.png')
+  );
+}
+
+// Middleware principal que implementa todas las verificaciones necesarias
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Ignorar recursos estáticos
-  if (pathname.startsWith('/_next') || 
-      pathname.startsWith('/favicon.ico') || 
-      pathname.startsWith('/images') || 
-      pathname.endsWith('.png')) {
+  // 1. Permitir recursos estáticos y rutas públicas siempre
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
   
-  // Permitir rutas de setup siempre
-  if (setupRoutes.some(route => pathname === route)) {
-    return NextResponse.next();
-  }
-  
-  // Si la app no está configurada, redirigir a setup
-  if (!isAppConfigured(request) && !pathname.startsWith('/setup') && pathname !== '/') {
+  // 2. Si la app no está configurada, redirigir a setup
+  if (!isAppConfigured(request)) {
     console.log(`App no configurada, redirigiendo a /setup desde ${pathname}`);
     return NextResponse.redirect(new URL('/setup', request.url));
   }
   
-  // Continuar con el siguiente middleware
-  return NextResponse.next();
-}
-
-// Usado authMiddleware para mantener la compatibilidad con Clerk
-export default authMiddleware({
-  publicRoutes,
-  beforeAuth: (req) => {
-    // Verificar configuración primero
-    return configMiddleware(req);
-  },
-  // Solo hacer la verificación de autenticación si Clerk está configurado
-  afterAuth: (auth, req) => {
-    if (!isClerkConfigured()) {
-      return NextResponse.next();
-    }
-    
-    // Si no hay usuario y no es una ruta pública, redirigir a sign-in
-    const { userId } = auth;
-    const { pathname } = req.nextUrl;
-    
-    if (!userId && !publicRoutes.some(route => pathname === route || pathname.startsWith(route))) {
-      return NextResponse.redirect(new URL('/sign-in', req.url));
-    }
-    
+  // 3. Si Clerk no está configurado pero hay acceso de emergencia, permitir acceso
+  if (!isClerkConfigured() && hasEmergencyAccess(request)) {
+    console.log(`Acceso de emergencia concedido para ${pathname}`);
     return NextResponse.next();
   }
-});
+  
+  // 4. Si Clerk no está configurado y no hay acceso de emergencia, redirigir a login de emergencia
+  if (!isClerkConfigured()) {
+    console.log(`Clerk no configurado, redirigiendo a login de emergencia desde ${pathname}`);
+    return NextResponse.redirect(new URL('/emergency-login', request.url));
+  }
+  
+  // 5. Si Clerk está configurado, usar auth() para verificar autenticación
+  try {
+    // Importación dinámica para mayor robustez
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId } = auth();
+    
+    // Si no hay usuario autenticado y la ruta requiere autenticación, redirigir a sign-in
+    if (!userId && !isPublicRoute(pathname)) {
+      return NextResponse.redirect(new URL('/sign-in', request.url));
+    }
+  } catch (error) {
+    console.error('Error al verificar autenticación con Clerk:', error);
+    // En caso de error, redirigir a login de emergencia
+    return NextResponse.redirect(new URL('/emergency-login', request.url));
+  }
+  
+  // Permitir la solicitud si todas las verificaciones pasan o ya se manejaron
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
