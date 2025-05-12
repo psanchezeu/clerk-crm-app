@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://postgres:postgres@hostybee.com:53998/clerkcrm"
+  url      = env("DATABASE_URL")
 }
 
 model Usuario {

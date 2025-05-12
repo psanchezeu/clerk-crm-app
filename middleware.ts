@@ -6,7 +6,12 @@ export default authMiddleware({
     "/",
     "/sign-in",
     "/sign-up",
-    "/api/webhook"
+    "/api/webhook",
+    "/setup",
+    "/api/config/check",
+    "/api/config/save",
+    "/api/config/save-db",
+    "/api/db/migrate"
   ],
 });
 
@@ -16,7 +21,7 @@ export const config = {
     "/dashboard/:path*",
     "/api/:path*",
     
-    // Excluir archivos estáticos y rutas de API específicas
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.png$).*)" 
+    // Excluir archivos estáticos, rutas de API específicas y la ruta de setup
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.png$|setup|api/config/.*).*)"
   ],
 };

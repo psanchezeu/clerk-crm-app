@@ -14,9 +14,9 @@ export async function GET() {
     // Leer el contenido del archivo .env
     const envContent = fs.readFileSync(envFilePath, 'utf8');
     
-    // Verificar si las claves de Clerk están presentes y con valores
-    const hasPublishableKey = /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=(.+)/m.test(envContent);
-    const hasSecretKey = /CLERK_SECRET_KEY=(.+)/m.test(envContent);
+    // Verificar si las claves de Clerk están presentes, activas (no comentadas) y con valores
+    const hasPublishableKey = /^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=(.+)/m.test(envContent);
+    const hasSecretKey = /^CLERK_SECRET_KEY=(.+)/m.test(envContent);
     
     return NextResponse.json({ 
       configured: hasPublishableKey && hasSecretKey 
