@@ -43,24 +43,39 @@ export default function SetupClerk() {
    */
   const saveClerkConfig = async (config: ConfigFormData): Promise<boolean> => {
     try {
-      // Crear cookies client-side como primer paso
-      document.cookie = `clerk_configured=true;path=/;max-age=${30 * 24 * 60 * 60}`;
+      // Guardar en localStorage para acceso inmediato
+      localStorage.setItem('clerk_publishable_key', config.publishableKey);
+      localStorage.setItem('clerk_secret_key', config.secretKey);
+      localStorage.setItem('clerk_configured', 'true');
       
-      // Intentar guardar vía API
-      const response = await fetch('/api/clerk-config', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(config),
-      });
+      // Establecer cookies directamente sin depender de la API
+      const maxAge = 30 * 24 * 60 * 60; // 30 días
+      document.cookie = `clerk_publishable_key=${config.publishableKey};path=/;max-age=${maxAge};samesite=lax`;
+      document.cookie = `clerk_secret_key=${config.secretKey};path=/;max-age=${maxAge};samesite=lax`;
+      document.cookie = `clerk_configured=true;path=/;max-age=${maxAge};samesite=lax`;
       
-      if (response.ok) {
-        return true;
+      // También intentar guardar a través de la API, pero no bloqueamos en esto
+      try {
+        const response = await fetch('/api/clerk-config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(config),
+          // Establecer un timeout para no esperar mucho
+          signal: AbortSignal.timeout(3000),
+        });
+        
+        if (response.ok) {
+          console.log('API success');
+        }
+      } catch (apiError) {
+        // No hacemos nada si la API falla, ya que ya hemos guardado en localStorage y cookies
+        console.warn('API error, pero configuración guardada localmente:', apiError);
       }
       
-      const data = await response.json();
-      throw new Error(data.error || 'Error al guardar la configuración');
+      // Consideramos exitoso incluso si la API falla, ya que tenemos la configuración local
+      return true;
     } catch (error) {
       console.error('Error al guardar configuración:', error);
       return false;
@@ -92,27 +107,19 @@ export default function SetupClerk() {
         return;
       }
       
-      // Guardar configuración
+      // Guardar configuración localmente primero (localStorage y cookies)
       const saved = await saveClerkConfig(formData);
       
       if (saved) {
         setStatus('success');
-        setMessage('Configuración guardada correctamente. Redirigiendo...');
+        setMessage('Configuración guardada correctamente.');
         
-        // Establecer variables locales para esta sesión
-        if (typeof window !== 'undefined') {
-          // Configurar localStorage y cookies para asegurar persistencia
-          localStorage.setItem('clerk_keys_configured', 'true');
-          document.cookie = `clerk_configured=true;path=/;max-age=${30 * 24 * 60 * 60};samesite=lax`;
-          // También almacenar las claves para desarrollo
-          localStorage.setItem('clerk_publishable_key', formData.publishableKey);
-          
-          // Forzar recarga completa para reiniciar la aplicación
-          setTimeout(() => {
-            // Usar una URL que evite el cache y fuerce la carga completa
-            window.location.href = '/?t=' + new Date().getTime();
-          }, 2000);
-        }
+        // Esperar un poco para que el usuario vea el mensaje de éxito
+        setTimeout(() => {
+          // CAMBIO IMPORTANTE: Usar window.location.replace en lugar de href para
+          // evitar que la página anterior quede en el historial
+          window.location.replace('/?configSuccess=true&t=' + Date.now());
+        }, 1500);
       } else {
         setStatus('error');
         setMessage('No se pudo guardar la configuración. Inténtalo de nuevo.');

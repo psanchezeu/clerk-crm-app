@@ -1,23 +1,12 @@
 /**
- * Middleware simplificado para configuración inicial de Clerk
+ * Middleware COMPLETAMENTE DESHABILITADO para evitar redirecciones
  */
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Rutas que no requieren autenticación
-const publicRoutes = [
-  // Página de configuración y recursos estáticos
-  '/',
-  '/setup-clerk',
-  '/_next',
-  '/favicon.ico',
-  
-  // Rutas de API necesarias para la configuración
-  '/api/clerk-config',
-];
-
 /**
  * Verifica si Clerk está correctamente configurado
+ * Esta función es exportada para uso en otros componentes
  */
 export function isClerkConfigured(): boolean {
   try {
@@ -31,46 +20,20 @@ export function isClerkConfigured(): boolean {
 }
 
 /**
- * Verifica si una ruta es pública o requiere autenticación
- */
-function isPublicRoute(pathname: string): boolean {
-  return publicRoutes.some(route => 
-    pathname === route || 
-    pathname.startsWith(route + '/') ||
-    pathname.endsWith('.js') ||
-    pathname.endsWith('.css') ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.ico')
-  );
-}
-
-/**
- * Middleware principal
+ * Middleware deshabilitado para evitar cualquier redirección
  */
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  
-  // Permitir siempre recursos estáticos y rutas públicas
-  if (isPublicRoute(pathname)) {
-    return NextResponse.next();
-  }
-  
-  // Si Clerk no está configurado, redirigir a la página de configuración
-  if (!isClerkConfigured()) {
-    return NextResponse.redirect(new URL('/setup-clerk', request.url));
-  }
-  
-  // Permitir todas las solicitudes si Clerk está configurado
-  // (implementaremos la autenticación más adelante)
+  // No hacer nada, simplemente permitir todas las solicitudes
+  console.log('Middleware deshabilitado:', request.nextUrl.pathname);
   return NextResponse.next();
 }
 
 /**
- * Configurar el matcher para que afecte todas las rutas excepto recursos estáticos
+ * Configurar el matcher para que NO afecte ninguna ruta
  */
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)"
+    // Esta ruta no existe, para que el middleware no afecte ninguna ruta
+    "/middleware-disabled-do-not-use"
   ],
 };

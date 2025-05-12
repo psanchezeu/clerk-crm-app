@@ -12,74 +12,34 @@ export default function Home() {
   
   // Verificar si Clerk está configurado
   useEffect(() => {
-    const checkClerkConfiguration = async () => {
-      try {
-        console.log('Verificando configuración de Clerk...');
-        
-        // Método 1: Verificar por cookies
-        const hasClerkCookie = document.cookie.includes('clerk_configured=true');
-        
-        // Método 2: Verificar por localStorage
-        const hasLocalStorage = localStorage.getItem('clerk_keys_configured') === 'true';
-        
-        // Método 3: Si tenemos una clave almacenada en localStorage
-        const hasStoredKey = localStorage.getItem('clerk_publishable_key')?.startsWith('pk_');
-        
-        // Método 4: Verificar con el servidor (más confiable pero asincrónico)
-        console.log('Estado de cookies y localStorage:', {
-          hasClerkCookie,
-          hasLocalStorage,
-          hasStoredKey
-        });
-        
-        // Si cualquiera de los métodos client-side indica que está configurado, procedemos
-        if (hasClerkCookie || hasLocalStorage || hasStoredKey) {
-          console.log('Clerk configurado según cliente');
-          setClerkConfigured(true);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Verificación del servidor como respaldo
-        try {
-          const response = await fetch('/api/clerk-config/check?t=' + Date.now(), {
-            method: 'GET',
-            headers: { 'Cache-Control': 'no-cache, no-store' },
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('Respuesta del servidor:', data);
-            
-            if (data.configured) {
-              console.log('Clerk configurado según servidor');
-              setClerkConfigured(true);
-              // Guardar también en localStorage para futuras verificaciones
-              localStorage.setItem('clerk_keys_configured', 'true');
-              document.cookie = `clerk_configured=true;path=/;max-age=${30 * 24 * 60 * 60};samesite=lax`;
-              setIsLoading(false);
-              return;
-            }
-          }
-        } catch (apiError) {
-          console.error('Error al verificar con la API:', apiError);
-        }
-        
-        // Si llegamos aquí, Clerk no está configurado
-        console.log('Clerk no está configurado, redirigiendo...');
-        setClerkConfigured(false);
-        router.push('/setup-clerk');
-      } catch (error) {
-        console.error('Error general al verificar configuración:', error);
-        setClerkConfigured(false);
-        router.push('/setup-clerk');
-      } finally {
+    // IMPORTANTE: NO hacemos redirecciones automáticas en este useEffect
+    const checkConfiguration = () => {
+      // Método #1: Verificar variables de entorno públicas en el cliente
+      const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
+      if (publishableKey && publishableKey.startsWith('pk_')) {
+        console.log('Clerk configurado por variables de entorno');
+        setClerkConfigured(true);
         setIsLoading(false);
+        return;
       }
+      
+      // Método #2: Verificar cookies en el cliente
+      if (document.cookie.includes('clerk_configured=true')) {
+        console.log('Clerk configurado por cookie');
+        setClerkConfigured(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Si llegamos aquí, Clerk no está configurado
+      console.log('Clerk no configurado');
+      setClerkConfigured(false);
+      setIsLoading(false);
     };
     
-    checkClerkConfiguration();
-  }, [router]);
+    // Ejecutar sin hacer solicitudes HTTP
+    checkConfiguration();
+  }, []);
   
   // Si estamos cargando, mostrar un estado de carga
   if (isLoading) {
