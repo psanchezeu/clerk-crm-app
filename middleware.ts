@@ -62,10 +62,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // 2. Si Clerk no está configurado, redirigir a configuración inicial
+  // 2. Si Clerk no está configurado, redirigir a configuración directa
   if (!isClerkConfigured()) {
-    console.log(`[Middleware] Clerk no configurado, redirigiendo a configuración inicial`);
-    return NextResponse.redirect(new URL('/initial-setup', request.url));
+    console.log(`[Middleware] Clerk no configurado, redirigiendo a configuración directa`);
+    return NextResponse.redirect(new URL('/direct-setup', request.url));
   }
   
   // 3. Si Clerk está configurado, usar autenticación estándar

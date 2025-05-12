@@ -66,17 +66,33 @@ export default function Home() {
           </CardHeader>
           
           <CardContent>
+            <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-lg mb-4">
+              <h3 className="font-medium text-yellow-800">Configuración rápida</h3>
+              <p className="text-yellow-800 text-sm">
+                Si estás teniendo problemas con la configuración normal, utiliza
+                nuestro método directo de configuración.
+              </p>
+            </div>
+            
             <p className="text-gray-600 mb-4">
               No se detectaron claves de configuración para Clerk. Para utilizar esta aplicación,
-              primero debes configurar la autenticación.  
+              primero debes configurar la autenticación.
             </p>
             
-            <div className="flex justify-center">
+            <div className="flex flex-col gap-2">
+              <Button 
+                onClick={() => window.location.href = '/direct-setup'}
+                className="bg-blue-600 hover:bg-blue-700"
+                size="lg"
+              >
+                Configuración directa (recomendado)
+              </Button>
+              
               <Button 
                 onClick={() => router.push('/initial-setup')}
-                className="bg-blue-600 hover:bg-blue-700"
+                variant="outline"
               >
-                Ir a la configuración inicial
+                Configuración normal
               </Button>
             </div>
           </CardContent>
