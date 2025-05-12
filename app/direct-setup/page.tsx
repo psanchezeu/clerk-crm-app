@@ -64,7 +64,7 @@ export default function DirectSetupPage() {
         
         // Recargar la página completamente para reiniciar la aplicación
         setTimeout(() => {
-          window.location.href = '/setup';
+          window.location.href = '/';
         }, 2000);
       } else {
         setStatus('error');

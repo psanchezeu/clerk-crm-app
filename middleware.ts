@@ -7,6 +7,7 @@ const publicRoutes = [
   // Rutas principales públicas
   '/',
   '/initial-setup',
+  '/direct-setup',  // Nueva ruta de configuración directa
   '/setup',
   '/sign-in',
   '/sign-up',
@@ -16,6 +17,7 @@ const publicRoutes = [
   '/api/config/save',
   '/api/config/save-db',
   '/api/config/status',
+  '/api/set-clerk-keys',  // Nuevo endpoint para configurar claves
   '/api/db/migrate',
   
   // Otros recursos públicos
@@ -57,6 +59,18 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   console.log(`[Middleware] Ruta: ${pathname}`);
   
+  // VERIFICACIÓN ESPECIAL: Si estamos en páginas de configuración o APIs, permitir siempre
+  if (
+    pathname === '/direct-setup' ||
+    pathname === '/initial-setup' ||
+    pathname === '/setup' ||
+    pathname.startsWith('/api/set-clerk-keys') ||
+    pathname.startsWith('/api/config/')
+  ) {
+    console.log(`[Middleware] Ruta de configuración o API, permitiendo acceso directo:`, pathname);
+    return NextResponse.next();
+  }
+  
   // 1. Siempre permitir recursos estáticos y rutas públicas
   if (isPublicRoute(pathname)) {
     return NextResponse.next();
@@ -79,8 +93,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/sign-in', request.url));
     }
   } catch (error) {
-    console.error('[Middleware] Error con Clerk, redirigiendo a configuración inicial:', error);
-    return NextResponse.redirect(new URL('/initial-setup', request.url));
+    console.error('[Middleware] Error con Clerk, redirigiendo a página de configuración directa:', error);
+    return NextResponse.redirect(new URL('/direct-setup', request.url));
   }
   
   // 4. Si todo está bien, permitir la solicitud
