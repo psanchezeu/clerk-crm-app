@@ -1,0 +1,6 @@
+# Clerk Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_dXB3YXJkLWxlb3BhcmQtNzUuY2xlcmsuYWNjb3VudHMuZGV2JA
+CLERK_SECRET_KEY=sk_test_RbkqeBdd0moXc1elXmW7EZQqKm5riww2BkHPp1mo87
+
+# Database
+DATABASE_URL="postgresql://postgres:postgres@hostybee.com:53998/crm"
