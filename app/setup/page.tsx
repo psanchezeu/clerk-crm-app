@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function SetupPage() {
@@ -21,7 +21,45 @@ export default function SetupPage() {
   const [stepsCompleted, setStepsCompleted] = useState<{[key: number]: boolean}>({});
   
   const router = useRouter();
-
+  
+  // Verificar si la configuración ya está completa al cargar la página
+  useEffect(() => {
+    const checkSetupStatus = async () => {
+      try {
+        // Intentar obtener el estado de setup_completed de localStorage
+        const setupCompleted = localStorage.getItem('setup_completed');
+        
+        // Si ya se completó la configuración, redirigir al dashboard o login
+        if (setupCompleted === 'true') {
+          // Redirigir al usuario a la página de inicio de sesión
+          router.push('/sign-in?redirect_url=/dashboard');
+        } else {
+          // Verificar con el servidor si la configuración ya está completa
+          const response = await fetch('/api/config/status', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            // Si el API indica que la configuración está completa
+            if (data.configured) {
+              localStorage.setItem('setup_completed', 'true');
+              router.push('/sign-in?redirect_url=/dashboard');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error al verificar estado de configuración:', error);
+      }
+    };
+    
+    checkSetupStatus();
+  }, [router]);
+  
   // Función para manejar la configuración de Clerk
   const handleClerkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,14 +277,24 @@ export default function SetupPage() {
     setMessage('Finalizando configuración...');
     
     try {
+      // Guardar el estado de configuración completa en el servidor
+      const configResponse = await fetch('/api/config/status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ configured: true }),
+      });
+      
+      if (!configResponse.ok) {
+        throw new Error(`Error al guardar el estado de configuración: ${configResponse.status}`);
+      }
+      
       // Crear una variable en localStorage como marcador client-side
       localStorage.setItem('setup_completed', 'true');
       
-      // Esperar un breve momento y redirigir al login
-      setTimeout(() => {
-        // Redirigir al usuario a la página de inicio de sesión primero
-        router.push('/sign-in?redirect_url=/dashboard');
-      }, 1000);
+      // Redirigir al usuario a la página de inicio de sesión primero
+      router.push('/sign-in?redirect_url=/dashboard');
     } catch (error) {
       console.error('Error al finalizar configuración:', error);
       setStatus('warning');
