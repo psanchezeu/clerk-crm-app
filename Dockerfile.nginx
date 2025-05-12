@@ -3,11 +3,11 @@ FROM nginx:latest
 # Crear directorio para certificados
 RUN mkdir -p /app/certificates
 
-# Copiar certificados (asegúrate de tener estos archivos disponibles en el contexto de construcción)
-COPY privkey.pem /app/certificates/
-COPY fullchain.pem /app/certificates/
+# Copiar certificados SSL (estos deberían existir en el servidor)
+COPY privkey.pem /app/certificates/ || true
+COPY fullchain.pem /app/certificates/ || true
 
-# Configurar Nginx - Escapar los $ con $$
+# Configuración de Nginx con reverse proxy hacia la aplicación Next.js
 RUN echo 'worker_processes 1; \
 events { worker_connections 1024; } \
 http { \
@@ -18,21 +18,21 @@ http { \
         ssl_certificate /app/certificates/fullchain.pem; \
         ssl_certificate_key /app/certificates/privkey.pem; \
         location / { \
-            proxy_pass http://51.254.100.59:33194; \
+            proxy_pass http://clerk-crm-app:3000; \
             proxy_http_version 1.1; \
-            proxy_set_header Upgrade $$http_upgrade; \
+            proxy_set_header Upgrade $http_upgrade; \
             proxy_set_header Connection "upgrade"; \
-            proxy_set_header Host $$host; \
-            proxy_set_header X-Real-IP $$remote_addr; \
-            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
-            proxy_set_header X-Forwarded-Proto $$scheme; \
-            proxy_cache_bypass $$http_upgrade; \
+            proxy_set_header Host $host; \
+            proxy_set_header X-Real-IP $remote_addr; \
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+            proxy_set_header X-Forwarded-Proto $scheme; \
+            proxy_cache_bypass $http_upgrade; \
         } \
     } \
 }' > /etc/nginx/nginx.conf
 
-# Exponer puerto
+# Exponer el puerto para HTTPS
 EXPOSE 56674
 
-# Iniciar Nginx
+# Comando para iniciar Nginx en primer plano
 CMD ["nginx", "-g", "daemon off;"]

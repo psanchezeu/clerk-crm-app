@@ -43,21 +43,27 @@ export default function SetupPage() {
           router.push('/sign-in?redirect_url=/dashboard');
         } else {
           // Verificar con el servidor si la configuración ya está completa
-          const response = await fetch('/api/config/status', {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
+          try {
+            const response = await fetch('/api/config/status', {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
             
-            // Si el API indica que la configuración está completa
-            if (data.configured) {
-              localStorage.setItem('setup_completed', 'true');
-              router.push('/sign-in?redirect_url=/dashboard');
+            if (response.ok) {
+              const data = await response.json();
+              
+              // Si el API indica que la configuración está completa
+              if (data.configured) {
+                localStorage.setItem('setup_completed', 'true');
+                router.push('/sign-in?redirect_url=/dashboard');
+              }
             }
+          } catch (fetchError) {
+            // Silenciar errores de fetch para que la página siga funcionando
+            console.warn('Error al verificar estado con el servidor:', fetchError);
+            // No mostrar error en la UI, solo continuar con la configuración
           }
         }
       } catch (error) {
@@ -67,6 +73,16 @@ export default function SetupPage() {
     
     checkSetupStatus();
   }, [router]);
+  
+  // Verificar si hay claves de Clerk en el entorno
+  useEffect(() => {
+    // Esta comprobación solo funciona en desarrollo porque las variables no están disponibles en cliente en producción
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+        console.warn('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY no está configurada en el entorno');
+      }
+    }
+  }, []);
   
   // Función para manejar la configuración de Clerk
   const handleClerkSubmit = async (e: React.FormEvent) => {
