@@ -1,13 +1,54 @@
 import Link from "next/link"
-import { currentUser } from "@clerk/nextjs"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
-export default async function Home() {
-  const user = await currentUser()
+// Función para verificar si Clerk está configurado
+const isClerkConfigured = () => {
+  try {
+    const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    return !!(publishableKey && secretKey && publishableKey.startsWith('pk_') && secretKey.startsWith('sk_'));
+  } catch (error) {
+    console.error('Error al verificar la configuración de Clerk:', error);
+    return false;
+  }
+}
 
-  if (user) {
-    redirect("/dashboard")
+export default async function Home() {
+  // Verificar si Clerk está configurado
+  if (!isClerkConfigured()) {
+    // Si Clerk no está configurado, mostrar mensaje para ir directamente a setup
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-4 text-center">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Configuración necesaria</h1>
+          <p className="mb-4">La aplicación aún no está configurada correctamente. Las claves de Clerk no se han detectado.</p>
+          <div className="p-3 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded mb-4">
+            <p className="font-bold">Configuración requerida</p>
+            <p>Se requiere completar la configuración para poder utilizar la aplicación.</p>
+          </div>
+          <Link href="/setup">
+            <Button className="w-full bg-blue-500 hover:bg-blue-600">
+              Ir a la página de configuración
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Intentar obtener el usuario actual con manejo de errores
+  try {
+    // Importar dinámicamente para evitar errores si Clerk no está configurado
+    const { currentUser } = await import("@clerk/nextjs");
+    const user = await currentUser();
+    
+    if (user) {
+      redirect("/dashboard");
+    }
+  } catch (error) {
+    console.error('Error al obtener el usuario actual:', error);
+    // Continuamos con la página principal en caso de error
   }
 
   return (
