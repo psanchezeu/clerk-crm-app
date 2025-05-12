@@ -99,10 +99,20 @@ export default function SetupClerk() {
         setStatus('success');
         setMessage('Configuración guardada correctamente. Redirigiendo...');
         
-        // Recargar la página para aplicar la configuración
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 2000);
+        // Establecer variables locales para esta sesión
+        if (typeof window !== 'undefined') {
+          // Configurar localStorage y cookies para asegurar persistencia
+          localStorage.setItem('clerk_keys_configured', 'true');
+          document.cookie = `clerk_configured=true;path=/;max-age=${30 * 24 * 60 * 60};samesite=lax`;
+          // También almacenar las claves para desarrollo
+          localStorage.setItem('clerk_publishable_key', formData.publishableKey);
+          
+          // Forzar recarga completa para reiniciar la aplicación
+          setTimeout(() => {
+            // Usar una URL que evite el cache y fuerce la carga completa
+            window.location.href = '/?t=' + new Date().getTime();
+          }, 2000);
+        }
       } else {
         setStatus('error');
         setMessage('No se pudo guardar la configuración. Inténtalo de nuevo.');

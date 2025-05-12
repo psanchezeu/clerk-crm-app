@@ -14,24 +14,63 @@ export default function Home() {
   useEffect(() => {
     const checkClerkConfiguration = async () => {
       try {
-        // Verificar si hay cookies que indican que Clerk está configurado
+        console.log('Verificando configuración de Clerk...');
+        
+        // Método 1: Verificar por cookies
         const hasClerkCookie = document.cookie.includes('clerk_configured=true');
         
-        if (hasClerkCookie) {
+        // Método 2: Verificar por localStorage
+        const hasLocalStorage = localStorage.getItem('clerk_keys_configured') === 'true';
+        
+        // Método 3: Si tenemos una clave almacenada en localStorage
+        const hasStoredKey = localStorage.getItem('clerk_publishable_key')?.startsWith('pk_');
+        
+        // Método 4: Verificar con el servidor (más confiable pero asincrónico)
+        console.log('Estado de cookies y localStorage:', {
+          hasClerkCookie,
+          hasLocalStorage,
+          hasStoredKey
+        });
+        
+        // Si cualquiera de los métodos client-side indica que está configurado, procedemos
+        if (hasClerkCookie || hasLocalStorage || hasStoredKey) {
+          console.log('Clerk configurado según cliente');
           setClerkConfigured(true);
-        } else {
-          // Intentar verificar también si las variables de entorno están establecidas
-          const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-          if (publishableKey && publishableKey.startsWith('pk_')) {
-            setClerkConfigured(true);
-          } else {
-            setClerkConfigured(false);
-            // Redireccionar a la página de configuración directamente
-            router.push('/setup-clerk');
-          }
+          setIsLoading(false);
+          return;
         }
+        
+        // Verificación del servidor como respaldo
+        try {
+          const response = await fetch('/api/clerk-config/check?t=' + Date.now(), {
+            method: 'GET',
+            headers: { 'Cache-Control': 'no-cache, no-store' },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Respuesta del servidor:', data);
+            
+            if (data.configured) {
+              console.log('Clerk configurado según servidor');
+              setClerkConfigured(true);
+              // Guardar también en localStorage para futuras verificaciones
+              localStorage.setItem('clerk_keys_configured', 'true');
+              document.cookie = `clerk_configured=true;path=/;max-age=${30 * 24 * 60 * 60};samesite=lax`;
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (apiError) {
+          console.error('Error al verificar con la API:', apiError);
+        }
+        
+        // Si llegamos aquí, Clerk no está configurado
+        console.log('Clerk no está configurado, redirigiendo...');
+        setClerkConfigured(false);
+        router.push('/setup-clerk');
       } catch (error) {
-        console.error('Error al verificar configuración:', error);
+        console.error('Error general al verificar configuración:', error);
         setClerkConfigured(false);
         router.push('/setup-clerk');
       } finally {
