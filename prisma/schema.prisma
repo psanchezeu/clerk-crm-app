@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://postgres:postgres@hostybee.com:53998/clerkcrm"
+}
+
+model Usuario {
+  id                 Int                  @id @default(autoincrement())
+  nombre             String
+  email              String               @unique
+  clerk_id           String               @unique
+  id_rol             Int
+  created_at         DateTime             @default(now())
+  updated_at         DateTime             @updatedAt
+  clientes           Cliente[]
+  configuraciones    Configuracion[]
+  datosFacturacion   DatoFacturacion[]
+  eventos            Evento[]
+  eventoParticipante EventoParticipante[]
+  leads              Lead[]
+  llamadas           LlamadaTelefonica[]
+  Oportunidad        Oportunidad[]
+  perfil             PerfilUsuario?
+  tareas             Tarea[]
+  rol                Rol                  @relation(fields: [id_rol], references: [id])
+
+  @@map("usuario")
+}
+
+model Rol {
+  id         Int       @id @default(autoincrement())
+  nombre     String    @unique
+  permisos   Json
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  usuarios   Usuario[]
+
+  @@map("rol")
+}
+
+model Cliente {
+  id             Int                 @id @default(autoincrement())
+  nombre_empresa String
+  sector         String?
+  telefono       String?
+  email          String?
+  direccion      String?
+  tipo           String              @default("B2B")
+  id_propietario Int
+  es_privado     Boolean             @default(false)
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+  propietario    Usuario             @relation(fields: [id_propietario], references: [id])
+  eventos        Evento[]
+  llamadas       LlamadaTelefonica[]
+  oportunidades  Oportunidad[]
+  tareas         Tarea[]
+
+  @@map("cliente")
+}
+
+model Lead {
+  id             Int                 @id @default(autoincrement())
+  nombre         String
+  email          String?
+  telefono       String?
+  empresa        String?
+  origen         String?
+  estado         String              @default("Nuevo")
+  id_propietario Int
+  es_privado     Boolean             @default(false)
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+  eventos        Evento[]
+  propietario    Usuario             @relation(fields: [id_propietario], references: [id])
+  llamadas       LlamadaTelefonica[]
+  oportunidades  Oportunidad[]
+  tareas         Tarea[]
+
+  @@map("lead")
+}
+
+model Oportunidad {
+  id             Int                 @id @default(autoincrement())
+  nombre         String
+  valor          Float?
+  etapa          String              @default("Prospección")
+  fecha_cierre   DateTime?
+  id_cliente     Int?
+  id_lead        Int?
+  id_propietario Int
+  es_privado     Boolean             @default(false)
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+  eventos        Evento[]
+  llamadas       LlamadaTelefonica[]
+  cliente        Cliente?            @relation(fields: [id_cliente], references: [id])
+  lead           Lead?               @relation(fields: [id_lead], references: [id])
+  propietario    Usuario             @relation(fields: [id_propietario], references: [id])
+  tareas         Tarea[]
+
+  @@map("oportunidad")
+}
+
+model Tarea {
+  id                Int          @id @default(autoincrement())
+  titulo            String
+  descripcion       String?
+  estado            String       @default("Pendiente")
+  fecha_vencimiento DateTime?
+  id_propietario    Int
+  id_cliente        Int?
+  id_lead           Int?
+  id_oportunidad    Int?
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+  cliente           Cliente?     @relation(fields: [id_cliente], references: [id])
+  lead              Lead?        @relation(fields: [id_lead], references: [id])
+  oportunidad       Oportunidad? @relation(fields: [id_oportunidad], references: [id])
+  propietario       Usuario      @relation(fields: [id_propietario], references: [id])
+
+  @@map("tarea")
+}
+
+model PerfilUsuario {
+  id             Int      @id @default(autoincrement())
+  id_usuario     Int      @unique
+  apellidos      String?
+  cargo          String?
+  bio            String?
+  telefono       String?
+  direccion      String?
+  ciudad         String?
+  codigo_postal  String?
+  pais           String?
+  avatar_url     String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  email_contacto String?
+  usuario        Usuario  @relation(fields: [id_usuario], references: [id])
+
+  @@map("perfil_usuario")
+}
+
+model DatoFacturacion {
+  id                    Int      @id @default(autoincrement())
+  id_usuario            Int
+  nombre_facturacion    String
+  cif_nif               String
+  direccion_facturacion String
+  ciudad_facturacion    String
+  cp_facturacion        String
+  pais_facturacion      String
+  email_facturacion     String?
+  metodo_pago           String   @default("tarjeta")
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+  usuario               Usuario  @relation(fields: [id_usuario], references: [id])
+
+  @@map("dato_facturacion")
+}
+
+model Configuracion {
+  id         Int      @id @default(autoincrement())
+  id_usuario Int
+  clave      String
+  valor      Json
+  categoria  String   @default("general")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  usuario    Usuario  @relation(fields: [id_usuario], references: [id])
+
+  @@unique([id_usuario, clave])
+  @@map("configuracion")
+}
+
+model ConfiguracionSistema {
+  id          Int      @id @default(autoincrement())
+  clave       String   @unique
+  valor       Json
+  descripcion String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("configuracion_sistema")
+}
+
+model PlantillaEmail {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  asunto      String
+  contenido   String
+  descripcion String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("plantilla_email")
+}
+
+model Evento {
+  id                  Int                  @id @default(autoincrement())
+  titulo              String
+  descripcion         String?
+  tipo                String
+  fecha_inicio        DateTime
+  fecha_fin           DateTime
+  es_todo_el_dia      Boolean              @default(false)
+  ubicacion           String?
+  url_videollamada    String?
+  color               String?
+  estado              String               @default("programado")
+  recordatorio        Int?
+  notas               String?
+  id_propietario      Int
+  id_cliente          Int?
+  id_lead             Int?
+  id_oportunidad      Int?
+  id_proveedor        Int?
+  id_llamada          Int?
+  es_privado          Boolean              @default(false)
+  created_at          DateTime             @default(now())
+  updated_at          DateTime             @updatedAt
+  cliente             Cliente?             @relation(fields: [id_cliente], references: [id])
+  lead                Lead?                @relation(fields: [id_lead], references: [id])
+  llamada             LlamadaTelefonica?   @relation(fields: [id_llamada], references: [id])
+  oportunidad         Oportunidad?         @relation(fields: [id_oportunidad], references: [id])
+  propietario         Usuario              @relation(fields: [id_propietario], references: [id])
+  proveedor_telefonia ProveedorTelefonia?  @relation(fields: [id_proveedor], references: [id])
+  participantes       EventoParticipante[]
+
+  @@map("evento")
+}
+
+model EventoParticipante {
+  id         Int      @id @default(autoincrement())
+  id_evento  Int
+  nombre     String
+  email      String
+  telefono   String?
+  tipo       String   @default("interno")
+  estado     String   @default("pendiente")
+  id_usuario Int?
+  notas      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  evento     Evento   @relation(fields: [id_evento], references: [id], onDelete: Cascade)
+  usuario    Usuario? @relation(fields: [id_usuario], references: [id])
+
+  @@map("evento_participante")
+}
+
+model ProveedorTelefonia {
+  id            Int                 @id @default(autoincrement())
+  nombre        String
+  tipo          String
+  api_url       String?
+  api_key       String?
+  api_secret    String?
+  configuracion Json?
+  activo        Boolean             @default(true)
+  created_at    DateTime            @default(now())
+  updated_at    DateTime            @updatedAt
+  eventos       Evento[]
+  llamadas      LlamadaTelefonica[]
+
+  @@map("proveedor_telefonia")
+}
+
+model LlamadaTelefonica {
+  id                Int                @id @default(autoincrement())
+  id_proveedor      Int
+  id_usuario        Int
+  numero_origen     String
+  numero_destino    String
+  fecha_inicio      DateTime
+  fecha_fin         DateTime?
+  duracion_segundos Int?
+  estado            String
+  tipo              String
+  id_cliente        Int?
+  id_lead           Int?
+  id_oportunidad    Int?
+  grabacion_url     String?
+  notas             String?
+  metadatos         Json?
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @updatedAt
+  eventos           Evento[]
+  cliente           Cliente?           @relation(fields: [id_cliente], references: [id])
+  lead              Lead?              @relation(fields: [id_lead], references: [id])
+  oportunidad       Oportunidad?       @relation(fields: [id_oportunidad], references: [id])
+  proveedor         ProveedorTelefonia @relation(fields: [id_proveedor], references: [id])
+  usuario           Usuario            @relation(fields: [id_usuario], references: [id])
+
+  @@map("llamada_telefonica")
+}
+
+model EmailConfiguration {
+  id           Int      @id @default(autoincrement())
+  smtp_host    String
+  smtp_port    Int
+  user_email   String
+  app_password String
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@map("email_configuration")
+}
