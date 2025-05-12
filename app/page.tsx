@@ -2,47 +2,48 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Home() {
-  const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [clerkConfigured, setClerkConfigured] = useState(false);
   const router = useRouter();
   
   // Verificar si Clerk está configurado
   useEffect(() => {
-    setIsClient(true);
-    
     const checkClerkConfiguration = async () => {
       try {
-        // Comprobar el estado de la configuración
-        const response = await fetch('/api/config/status');
-        const data = await response.json();
+        // Verificar si hay cookies que indican que Clerk está configurado
+        const hasClerkCookie = document.cookie.includes('clerk_configured=true');
         
-        if (data.clerkPublishableKey && data.clerkSecretKey) {
+        if (hasClerkCookie) {
           setClerkConfigured(true);
-          router.push('/sign-in');
         } else {
-          setClerkConfigured(false);
+          // Intentar verificar también si las variables de entorno están establecidas
+          const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+          if (publishableKey && publishableKey.startsWith('pk_')) {
+            setClerkConfigured(true);
+          } else {
+            setClerkConfigured(false);
+            // Redireccionar a la página de configuración directamente
+            router.push('/setup-clerk');
+          }
         }
       } catch (error) {
         console.error('Error al verificar configuración:', error);
         setClerkConfigured(false);
+        router.push('/setup-clerk');
       } finally {
         setIsLoading(false);
       }
     };
     
-    if (isClient) {
-      checkClerkConfiguration();
-    }
-  }, [isClient, router]);
+    checkClerkConfiguration();
+  }, [router]);
   
-  // Si estamos en el servidor o cargando, mostrar un estado de carga
-  if (!isClient || isLoading) {
+  // Si estamos cargando, mostrar un estado de carga
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
@@ -53,55 +54,39 @@ export default function Home() {
     );
   }
   
-  // Si Clerk no está configurado, mostrar opciones
-  if (!clerkConfigured) {
+  // Si Clerk está configurado, mostrar opciones para continuar
+  if (clerkConfigured) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Bienvenido a tu CRM</CardTitle>
+            <CardTitle>¡Bienvenido a tu CRM!</CardTitle>
             <CardDescription>
-              Para comenzar a usar la aplicación, necesitas configurar la autenticación de Clerk.
+              Clerk está configurado correctamente. ¿Qué deseas hacer a continuación?
             </CardDescription>
           </CardHeader>
           
           <CardContent>
-            <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-lg mb-4">
-              <h3 className="font-medium text-yellow-800">Configuración rápida</h3>
-              <p className="text-yellow-800 text-sm">
-                Si estás teniendo problemas con la configuración normal, utiliza
-                nuestro método directo de configuración.
-              </p>
-            </div>
-            
-            <p className="text-gray-600 mb-4">
-              No se detectaron claves de configuración para Clerk. Para utilizar esta aplicación,
-              primero debes configurar la autenticación.
-            </p>
-            
             <div className="flex flex-col gap-2">
               <Button 
-                onClick={() => window.location.href = '/direct-setup'}
+                onClick={() => router.push('/setup')}
                 className="bg-blue-600 hover:bg-blue-700"
-                size="lg"
               >
-                Configuración directa (recomendado)
+                Configurar base de datos
               </Button>
               
               <Button 
-                onClick={() => router.push('/initial-setup')}
+                onClick={() => router.push('/sign-in')}
                 variant="outline"
               >
-                Configuración normal
+                Iniciar sesión
               </Button>
             </div>
           </CardContent>
           
-          <CardFooter className="flex flex-col items-start text-sm text-gray-500 border-t pt-4">
-            <p className="font-medium mb-1">¿Qué es Clerk?</p>
+          <CardFooter className="text-sm text-gray-500 border-t pt-4">
             <p>
-              Clerk es una plataforma de autenticación que proporciona inicio de sesión seguro 
-              y gestión de usuarios para tu aplicación.
+              CRM con autenticación Clerk - Tu solución empresarial completa
             </p>
           </CardFooter>
         </Card>
@@ -109,13 +94,26 @@ export default function Home() {
     );
   }
   
-  // Por defecto, simplemente mostrar un mensaje de carga mientras se realiza la redirección
+  // En caso de que no esté configurado y no se haya redireccionado todavía
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50">
-      <div className="text-center">
-        <h2 className="text-2xl font-semibold mb-4">Redirigiendo...</h2>
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-      </div>
+    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Configuración requerida</CardTitle>
+          <CardDescription>
+            Para continuar, necesitas configurar Clerk.  
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          <Button 
+            onClick={() => router.push('/setup-clerk')}
+            className="w-full bg-blue-600 hover:bg-blue-700"
+          >
+            Ir a la página de configuración
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
