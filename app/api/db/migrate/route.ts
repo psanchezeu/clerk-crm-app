@@ -2,26 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { PrismaClient } from '@prisma/client';
 
 // Función para ejecutar comandos de forma asíncrona
-const execPromise = (command: string): Promise<string> => {
+const execPromise = async (command: string, timeout = 30000): Promise<string> => {
   return new Promise((resolve, reject) => {
     console.log(`Ejecutando comando: ${command}`);
-    exec(command, { encoding: 'utf8', cwd: process.cwd() }, (error, stdout, stderr) => {
+    const childProcess = exec(command, { env: { ...process.env } }, (error, stdout, stderr) => {
       if (error) {
-        console.error(`Error ejecutando comando: ${error.message}`);
-        console.error(`Stderr: ${stderr}`);
+        console.error(`Error al ejecutar ${command}:`, error);
+        console.error('stderr:', stderr);
         reject(error);
         return;
       }
       console.log(`Comando completado: ${command}`);
-      console.log(`Stdout: ${stdout.substring(0, 200)}${stdout.length > 200 ? '...' : ''}`);
+      console.log('stdout:', stdout);
       resolve(stdout);
     });
+    
+    // Timeout para evitar que se quede bloqueado
+    const timer = setTimeout(() => {
+      childProcess.kill();
+      reject(new Error(`Timeout al ejecutar el comando: ${command}`));
+    }, timeout);
+    
+    childProcess.on('close', () => clearTimeout(timer));
   });
 };
 
-// Manejador para solicitudes OPTIONS (CORS)
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
@@ -34,89 +42,115 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('Iniciando proceso de migración de la base de datos...');
+  console.log('POST /api/db/migrate - Iniciando...');
+  let prisma: PrismaClient | null = null;
   
   try {
-    // Intentamos recuperar la URL de la base de datos enviada en el cuerpo de la solicitud
-    let dbUrlFromRequest = null;
+    const { dbUrl } = await request.json();
+    let databaseUrl = dbUrl;
+    
+    // Si se proporciona una URL de base de datos en la solicitud, usarla
+    // sino, intentar leer del archivo .env
+    if (!databaseUrl) {
+      console.log('No se proporcionó URL de base de datos en la solicitud, buscando en .env');
+      
+      // Verificar si el archivo .env existe y contiene DATABASE_URL
+      const envFilePath = path.join(process.cwd(), '.env');
+      
+      if (fs.existsSync(envFilePath)) {
+        const envContent = fs.readFileSync(envFilePath, 'utf8');
+        const dbUrlMatch = envContent.match(/DATABASE_URL=\"([^\"]+)\"/); // Extraer el valor de DATABASE_URL
+        
+        if (dbUrlMatch && dbUrlMatch[1]) {
+          databaseUrl = dbUrlMatch[1];
+          console.log('URL de base de datos encontrada en .env');
+        } else {
+          return NextResponse.json({
+            success: false,
+            error: 'No se encontró DATABASE_URL en el archivo .env. Configura primero la URL de la base de datos.'
+          }, { status: 400 });
+        }
+      } else {
+        return NextResponse.json({
+          success: false,
+          error: 'No se encontró el archivo .env ni se proporcionó una URL de base de datos. Configura primero la URL de la base de datos.'
+        }, { status: 400 });
+      }
+    }
+
+    // Si tenemos una URL de base de datos, intentar configurar la variable de entorno temporalmente
+    if (databaseUrl) {
+      process.env.DATABASE_URL = databaseUrl;
+      console.log('Variable de entorno DATABASE_URL configurada temporalmente');
+    }
+
+    // Verificar si podemos conectarnos a la base de datos antes de continuar
     try {
-      const requestBody = await request.json();
-      dbUrlFromRequest = requestBody.dbUrl;
-      if (dbUrlFromRequest) {
-        console.log('URL de base de datos recibida en la solicitud:', dbUrlFromRequest.substring(0, 20) + '...');
-      }
-    } catch (jsonError) {
-      console.log('No se pudo extraer dbUrl del cuerpo de la solicitud (esto es normal si no se envió):', jsonError);
-    }
-    
-    // Verificar si el archivo .env existe y contiene DATABASE_URL
-    let dbUrlFromEnv = null;
-    const envFilePath = path.join(process.cwd(), '.env');
-    if (fs.existsSync(envFilePath)) {
-      const envContent = fs.readFileSync(envFilePath, 'utf8');
-      const dbUrlMatch = envContent.match(/DATABASE_URL=\"([^\"]+)\"/); // Extraer el valor de DATABASE_URL
-      if (dbUrlMatch && dbUrlMatch[1]) {
-        dbUrlFromEnv = dbUrlMatch[1];
-        console.log('URL de base de datos encontrada en .env:', dbUrlFromEnv.substring(0, 20) + '...');
-      }
-    }
-    
-    // Determinar qué URL de base de datos usar
-    const dbUrl = dbUrlFromRequest || dbUrlFromEnv;
-    
-    // Si no hay URL de base de datos disponible, devolver error
-    if (!dbUrl) {
-      console.error('No se encontró URL de base de datos ni en la solicitud ni en .env');
+      console.log('Probando conexión a la base de datos...');
+      prisma = new PrismaClient();
+      await prisma.$connect();
+      console.log('Conexión a la base de datos exitosa');
+    } catch (connectionError) {
+      console.error('Error al conectar con la base de datos:', connectionError);
       return NextResponse.json({
         success: false,
-        error: 'No se encontró DATABASE_URL en el archivo .env ni en la solicitud. Configura primero la URL de la base de datos.'
-      }, { status: 400 });
+        error: `No se pudo conectar a la base de datos. Verifica la URL y asegúrate de que la base de datos esté accesible. Error: ${connectionError instanceof Error ? connectionError.message : 'Error desconocido'}`
+      }, { status: 500 });
     }
-    
-    // Intentar ejecutar la migración con prisma db push (más seguro que migrate dev en producción)
+
+    // Intentar ejecutar Prisma para generar el cliente y aplicar migraciones
     try {
-      await execPromise('npx prisma db push --accept-data-loss');
+      console.log('Ejecutando prisma generate...');
+      await execPromise('npx prisma generate', 60000);
+      
+      console.log('Ejecutando prisma db push...');
+      await execPromise('npx prisma db push --accept-data-loss', 120000);
+      
+      // Intentar ejecutar el script de seed para datos iniciales
+      try {
+        console.log('Ejecutando script de seed...');
+        await execPromise('npx prisma db seed', 60000);
+      } catch (seedError) {
+        console.warn('Advertencia al ejecutar seed:', seedError);
+        // Continuamos a pesar del error en seed
+      }
+      
+      // Verificar la conexión a la base de datos nuevamente
+      if (prisma) {
+        // Intentar realizar una consulta simple
+        const rolesCount = await prisma.rol.count();
+        console.log(`Verificación final: Roles encontrados: ${rolesCount}`);
+      }
+      
+      return NextResponse.json({
+        success: true,
+        message: 'Migración completada exitosamente. Base de datos configurada y poblada.',
+        details: {
+          dbUrl: databaseUrl ? databaseUrl.replace(/:[^:]*@/, ':****@') : null // Ocultar contraseña en logs
+        }
+      });
     } catch (migrationError) {
-      console.error('Error durante db push:', migrationError);
+      console.error('Error durante la migración:', migrationError);
       return NextResponse.json({
         success: false,
         error: `Error durante la migración: ${migrationError instanceof Error ? migrationError.message : 'Error desconocido'}`
       }, { status: 500 });
     }
-    
-    // Generar el cliente Prisma
-    try {
-      await execPromise('npx prisma generate');
-    } catch (generateError) {
-      console.warn('Advertencia al generar el cliente Prisma:', generateError);
-      // Continuamos aunque falle la generación del cliente
-    }
-    
-    // Respuesta exitosa
-    const response = NextResponse.json({
-      success: true,
-      message: 'Base de datos migrada correctamente. Las tablas han sido creadas en la base de datos.'
-    });
-    
-    // Configurar cabeceras CORS
-    response.headers.set('Access-Control-Allow-Origin', '*');
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-    
-    return response;
   } catch (error) {
-    console.error('Error durante el proceso de migración:', error);
-    
-    const response = NextResponse.json({
+    console.error('Error general:', error);
+    return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Error desconocido durante la migración'
+      error: `Error general: ${error instanceof Error ? error.message : 'Error desconocido'}`
     }, { status: 500 });
-    
-    // Configurar cabeceras CORS incluso en caso de error
-    response.headers.set('Access-Control-Allow-Origin', '*');
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-    
-    return response;
+  } finally {
+    // Asegurarse de cerrar la conexión a Prisma
+    if (prisma) {
+      try {
+        await prisma.$disconnect();
+        console.log('Conexión a Prisma cerrada correctamente');
+      } catch (disconnectError) {
+        console.error('Error al desconectar Prisma:', disconnectError);
+      }
+    }
   }
 }
