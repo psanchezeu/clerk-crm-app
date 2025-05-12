@@ -27,9 +27,6 @@ export default function RootLayout({
   // Solo usamos ClerkProvider si tenemos claves válidas
   const content = (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script src="/redirect-helper.js" async></script>
-      </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}
