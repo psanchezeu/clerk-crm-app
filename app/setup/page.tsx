@@ -84,20 +84,56 @@ export default function SetupPage() {
         return;
       }
 
-      // Llamar al endpoint unificado para guardar las claves
-      const response = await fetch('/api/config/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ publishableKey, secretKey }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error en la respuesta del servidor: ${response.status}`);
+      // Llamar al endpoint unificado para guardar las claves con manejo de errores mejorado
+      let response;
+      try {
+        response = await fetch('/api/config/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ publishableKey, secretKey }),
+        });
+      } catch (networkError) {
+        // Error de red (por ejemplo, servidor no disponible)
+        console.error('Error de red al guardar configuración:', networkError);
+        throw new Error('Error de conexión con el servidor. Comprueba tu conexión a internet.');
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        // Intentamos leer el cuerpo de respuesta para entender mejor el error
+        let errorDetail = `Error en la respuesta del servidor: ${response.status}`;
+        try {
+          // Intentamos parsear como JSON primero
+          const errorJson = await response.json();
+          if (errorJson && errorJson.error) {
+            errorDetail = errorJson.error;
+          }
+        } catch (jsonError) {
+          // Si no es JSON, intentamos leer como texto
+          try {
+            const errorText = await response.text();
+            // Si el texto contiene HTML, probablemente es una página de error
+            if (errorText.includes('<!DOCTYPE') || errorText.includes('<html')) {
+              errorDetail = `Recibida página HTML en lugar de JSON. Posible error del servidor (${response.status})`;
+            } else if (errorText) {
+              errorDetail = errorText;
+            }
+          } catch (textError) {
+            // Si tampoco podemos leer como texto, usamos el error por defecto
+            console.error('No se pudo leer la respuesta de error:', textError);
+          }
+        }
+        throw new Error(errorDetail);
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Error al parsear la respuesta JSON:', jsonError);
+        throw new Error('La respuesta del servidor no es un JSON válido');
+      }
 
       if (data.success) {
         // Marcar este paso como completado

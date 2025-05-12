@@ -11,6 +11,7 @@ export async function middleware(request: NextRequest) {
     '/api/config/check',
     '/api/config/save',
     '/api/config/save-db', 
+    '/api/config/status',  // Añadido el nuevo endpoint
     '/api/db/migrate'
   ];
   
@@ -38,8 +39,19 @@ export async function middleware(request: NextRequest) {
     // Verificar si la aplicación está configurada
     const isConfigured = await safeConfigCheck();
     
+    // Verificación adicional en localStorage (lado cliente)
+    // Esto solo se usa como respaldo y no afecta el funcionamiento del servidor
+    let clientSideConfigured = false;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        clientSideConfigured = localStorage.getItem('setup_completed') === 'true';
+      } catch (e) {
+        // Ignorar errores de localStorage
+      }
+    }
+    
     // Si no está configurada y no estamos en el setup, redirigir al setup
-    if (!isConfigured && !pathname.startsWith('/setup')) {
+    if (!isConfigured && !clientSideConfigured && !pathname.startsWith('/setup')) {
       console.log(`App no configurada, redirigiendo a /setup desde ${pathname}`);
       return NextResponse.redirect(new URL('/setup', request.url));
     }
@@ -70,6 +82,7 @@ export default authMiddleware({
     "/api/config/check",
     "/api/config/save",
     "/api/config/save-db",
+    "/api/config/status",  // Añadido el nuevo endpoint
     "/api/db/migrate",
     "/not-found"
   ],
