@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { markSetupComplete } from '../../lib/config-check';
+import { markSetupComplete } from '@/lib/config-check';
 
 export default function SetupPage() {
   // Estado para las claves de Clerk
@@ -236,32 +236,27 @@ export default function SetupPage() {
   // Función para ir al dashboard (redirigir a inicio de sesión primero)
   const goToDashboard = async () => {
     setIsLoading(true);
+    setStatus('loading');
+    setMessage('Finalizando configuración...');
     
     try {
-      // Marcar el setup como completado
+      // Marcar explícitamente que el setup está completo
       await markSetupComplete();
-      console.log('Setup marcado como completado');
       
-      // Notificar al servidor que el setup está completo
-      await fetch('/api/config/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ setupComplete: true }),
-      });
-      
-      // Esperar un poco para asegurar que todo se ha guardado
+      // Esperar un momento para que los cambios se apliquen
       setTimeout(() => {
         // Redirigir al usuario a la página de inicio de sesión primero
         router.push('/sign-in?redirect_url=/dashboard');
       }, 1000);
     } catch (error) {
-      console.error('Error al finalizar el setup:', error);
-      setStatus('error');
-      setMessage('Hubo un problema al finalizar la configuración. Intenta nuevamente en unos segundos.');
-    } finally {
-      setIsLoading(false);
+      console.error('Error al finalizar configuración:', error);
+      setStatus('warning');
+      setMessage('Hubo un problema al finalizar la configuración, pero puedes continuar igualmente.');
+      
+      // Intentar redirigir de todos modos después de un tiempo
+      setTimeout(() => {
+        router.push('/sign-in?redirect_url=/dashboard');
+      }, 3000);
     }
   };
 

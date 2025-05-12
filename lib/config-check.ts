@@ -6,9 +6,7 @@ import { PrismaClient } from '@prisma/client';
 let isConfigured: boolean | null = null;
 let lastChecked = 0;
 const CACHE_TTL = 60000; // 1 minuto
-
-// Constante con el nombre del archivo para marcar setup completado
-const SETUP_COMPLETE_MARKER = '.setup-complete';
+const SETUP_MARKER_FILE = '.setup_completed';
 
 /**
  * Verifica si la aplicación está configurada correctamente
@@ -24,8 +22,18 @@ export async function isAppConfigured(forceCheck = false): Promise<boolean> {
   }
   
   try {
-    // 1. Verificar si existe el archivo .env
     const rootDir = process.cwd();
+    
+    // 0. Verificar primero si existe el marcador de setup completado
+    const setupMarkerPath = path.join(rootDir, SETUP_MARKER_FILE);
+    if (fs.existsSync(setupMarkerPath)) {
+      // El setup ya se completó previamente, consideramos la app como configurada
+      isConfigured = true;
+      lastChecked = now;
+      return true;
+    }
+    
+    // 1. Verificar si existe el archivo .env
     const envPath = path.join(rootDir, '.env');
     const envExists = fs.existsSync(envPath);
     
@@ -46,29 +54,29 @@ export async function isAppConfigured(forceCheck = false): Promise<boolean> {
       return false;
     }
     
-    // 2.5 Verificar si existe el marcador de setup completado
-    const setupMarkerPath = path.join(rootDir, SETUP_COMPLETE_MARKER);
-    const setupCompleted = fs.existsSync(setupMarkerPath);
-    
-    // Si existe el marcador de setup completado, consideramos que está configurado
-    if (setupCompleted) {
-      console.log('Marcador de setup completado encontrado');
-      isConfigured = true;
-      lastChecked = now;
-      return true;
-    }
-    
     // 3. Intentar conectar a la base de datos
     try {
       const prisma = new PrismaClient();
-      // Intentamos acceder a la tabla de usuarios para ver si existe
-      await prisma.$queryRaw`SELECT 1 FROM "usuario" LIMIT 1`;
-      await prisma.$disconnect();
-      
-      // Si llegamos aquí, la conexión fue exitosa y las tablas existen
-      isConfigured = true;
-      lastChecked = now;
-      return true;
+      try {
+        // Intentamos acceder a la tabla de usuarios para ver si existe
+        await prisma.$queryRaw`SELECT 1 FROM "usuario" LIMIT 1`;
+        
+        // Si llegamos aquí, la conexión fue exitosa y las tablas existen
+        // Creamos el marcador de setup completado para futuras verificaciones
+        try {
+          fs.writeFileSync(setupMarkerPath, new Date().toISOString());
+          console.log('Marcador de setup completado creado correctamente');
+        } catch (markerError) {
+          console.warn('No se pudo crear el marcador de setup completado:', markerError);
+          // Continuamos a pesar del error en la creación del marcador
+        }
+        
+        isConfigured = true;
+        lastChecked = now;
+      } finally {
+        await prisma.$disconnect();
+      }
+      return isConfigured || false;
     } catch (dbError) {
       console.error('Error al verificar la base de datos:', dbError);
       isConfigured = false;
@@ -97,21 +105,20 @@ export async function safeConfigCheck(): Promise<boolean> {
 }
 
 /**
- * Marca el setup como completado creando un archivo marcador
- * @returns Promise<boolean> True si se pudo marcar, false en caso contrario
+ * Marca explícitamente que el setup de la aplicación ha sido completado
+ * Crea un archivo marcador que será verificado en futuros chequeos
  */
 export async function markSetupComplete(): Promise<boolean> {
   try {
     const rootDir = process.cwd();
-    const markerPath = path.join(rootDir, SETUP_COMPLETE_MARKER);
+    const setupMarkerPath = path.join(rootDir, SETUP_MARKER_FILE);
     
-    // Crear el archivo marcador
-    fs.writeFileSync(markerPath, new Date().toISOString());
+    // Escribir la fecha y hora actual como contenido del marcador
+    fs.writeFileSync(setupMarkerPath, new Date().toISOString());
     
-    // Reiniciar el caché
+    // Resetear la caché para forzar la próxima verificación
     isConfigured = null;
     
-    console.log('Setup marcado como completado');
     return true;
   } catch (error) {
     console.error('Error al marcar setup como completado:', error);
