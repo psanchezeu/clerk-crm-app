@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
+import { markSetupComplete } from '../../../../lib/config-check';
 
 // Manejador para solicitudes OPTIONS (CORS)
 export async function OPTIONS(request: NextRequest) {
@@ -32,7 +33,17 @@ export async function POST(request: NextRequest) {
   try {
     // Extraer los datos de la solicitud
     const body = await request.json();
-    const { publishableKey, secretKey, dbUrl, migrate } = body;
+    const { publishableKey, secretKey, dbUrl, migrate, setupComplete } = body;
+    
+    // Si se solicita marcar el setup como completado
+    if (setupComplete) {
+      try {
+        await markSetupComplete();
+        console.log('Setup marcado como completado desde API');
+      } catch (setupError) {
+        console.error('Error al marcar setup como completado:', setupError);
+      }
+    }
     
     console.log('Datos recibidos:', { 
       hasPublishableKey: !!publishableKey, 

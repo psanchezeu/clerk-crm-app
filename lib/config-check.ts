@@ -7,6 +7,9 @@ let isConfigured: boolean | null = null;
 let lastChecked = 0;
 const CACHE_TTL = 60000; // 1 minuto
 
+// Constante con el nombre del archivo para marcar setup completado
+const SETUP_COMPLETE_MARKER = '.setup-complete';
+
 /**
  * Verifica si la aplicación está configurada correctamente
  * @param forceCheck Fuerza una verificación ignorando la caché
@@ -43,6 +46,18 @@ export async function isAppConfigured(forceCheck = false): Promise<boolean> {
       return false;
     }
     
+    // 2.5 Verificar si existe el marcador de setup completado
+    const setupMarkerPath = path.join(rootDir, SETUP_COMPLETE_MARKER);
+    const setupCompleted = fs.existsSync(setupMarkerPath);
+    
+    // Si existe el marcador de setup completado, consideramos que está configurado
+    if (setupCompleted) {
+      console.log('Marcador de setup completado encontrado');
+      isConfigured = true;
+      lastChecked = now;
+      return true;
+    }
+    
     // 3. Intentar conectar a la base de datos
     try {
       const prisma = new PrismaClient();
@@ -77,6 +92,29 @@ export async function safeConfigCheck(): Promise<boolean> {
     return await isAppConfigured();
   } catch (error) {
     console.error('Error en verificación segura:', error);
+    return false;
+  }
+}
+
+/**
+ * Marca el setup como completado creando un archivo marcador
+ * @returns Promise<boolean> True si se pudo marcar, false en caso contrario
+ */
+export async function markSetupComplete(): Promise<boolean> {
+  try {
+    const rootDir = process.cwd();
+    const markerPath = path.join(rootDir, SETUP_COMPLETE_MARKER);
+    
+    // Crear el archivo marcador
+    fs.writeFileSync(markerPath, new Date().toISOString());
+    
+    // Reiniciar el caché
+    isConfigured = null;
+    
+    console.log('Setup marcado como completado');
+    return true;
+  } catch (error) {
+    console.error('Error al marcar setup como completado:', error);
     return false;
   }
 }
