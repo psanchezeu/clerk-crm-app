@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Script from 'next/script';
 
 export default function SetupPage() {
   // Estado para las claves de Clerk
@@ -20,6 +19,9 @@ export default function SetupPage() {
   // Estado para controlar el paso actual del wizard
   const [currentStep, setCurrentStep] = useState(1);
   const [stepsCompleted, setStepsCompleted] = useState<{[key: number]: boolean}>({});
+  
+  // Estado para cliente y comprobación directa
+  const [isClient, setIsClient] = useState(false);
   
   const router = useRouter();
   
@@ -420,9 +422,6 @@ export default function SetupPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Script de solución radical para acceso de emergencia */}
-      <Script src="/bypass-all.js" strategy="afterInteractive" />
-      
       <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-md">
         {/* Encabezado con indicador de pasos */}
         <div className="mb-6">

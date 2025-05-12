@@ -1,20 +1,24 @@
-// Implementación de middleware compatible con modo de emergencia
+// Middleware simplificado con enfoque en configuración inicial
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Rutas que siempre deben ser accesibles, independientemente de la autenticación o configuración
+// Rutas que siempre serán accesibles sin autenticación
 const publicRoutes = [
-  '/api/bypass-auth',
-  '/emergency-login', 
-  '/setup',
-  '/api/config/check',
-  '/api/config/save',
-  '/api/config/save-db', 
-  '/api/config/status',
-  '/api/db/migrate',
+  // Rutas principales públicas
   '/',
+  '/initial-setup',
+  '/setup',
   '/sign-in',
   '/sign-up',
+  
+  // APIs de configuración
+  '/api/config/check',
+  '/api/config/save',
+  '/api/config/save-db',
+  '/api/config/status',
+  '/api/db/migrate',
+  
+  // Otros recursos públicos
   '/api/webhook',
   '/not-found'
 ];
@@ -31,134 +35,55 @@ function isClerkConfigured(): boolean {
   }
 }
 
-// Comprobar si la aplicación está configurada (usando cookies)
-function isAppConfigured(request: NextRequest): boolean {
-  try {
-    const cookies = request.cookies;
-    const setupCompletedCookie = cookies.get('setup_completed');
-    return setupCompletedCookie?.value === 'true';
-  } catch (error) {
-    console.error('Error al verificar cookies de configuración:', error);
-    return false;
-  }
-}
-
-// Token radical de emergencia que siempre tendrá prioridad
-const EMERGENCY_AUTH_TOKEN = 'emergency_auth_active';
-
-// Verificar si el usuario tiene acceso de emergencia
-function hasEmergencyAccess(request: NextRequest): boolean {
-  try {
-    // SIEMPRE verificar primero el token radical
-    const cookies = request.cookies;
-    const radicalBypassCookie = cookies.get(EMERGENCY_AUTH_TOKEN);
-    if (radicalBypassCookie?.value === 'true') {
-      console.log('[Middleware] Token radical de emergencia detectado');
-      return true;
-    }
-    
-    // Verificar desde múltiples fuentes para mayor robustez
-    const emergencyAccessCookie = cookies.get('emergency_access');
-    const setupCompletedCookie = cookies.get('setup_completed');
-    
-    // Verificar token en los headers para API calls
-    const authHeader = request.headers.get('x-emergency-token');
-    
-    // Verificar query param para casos extremos
-    const { searchParams } = new URL(request.url);
-    const emergencyToken = searchParams.get('emergency_token');
-    const tokenParam = searchParams.get('token');
-    
-    // Si cualquiera de estas fuentes indica acceso de emergencia, permitirlo
-    return (
-      emergencyAccessCookie?.value === 'true' ||
-      setupCompletedCookie?.value === 'true' ||
-      authHeader === (process.env.EMERGENCY_PASSWORD || 'setup123') ||
-      emergencyToken === (process.env.EMERGENCY_PASSWORD || 'setup123') ||
-      tokenParam === 'emergency'
-    );
-  } catch (error) {
-    console.error('Error al verificar acceso de emergencia:', error);
-    return false;
-  }
-}
-
-// Comprobar si la ruta debe ser accesible públicamente
+// Comprobar si es una ruta pública que no requiere autenticación
 function isPublicRoute(pathname: string): boolean {
   return publicRoutes.some(route => 
     pathname === route || 
     pathname.startsWith(route + '/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon.ico') ||
-    pathname.startsWith('/images') ||
-    pathname.endsWith('.png')
+    pathname.startsWith('/public/') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.js')
   );
 }
 
-// Middleware principal simplificado y robusto para evitar bucles de redirección
+/**
+ * Middleware simplificado que solo verifica las rutas públicas y redirige a configuración inicial
+ * si Clerk no está configurado
+ */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  console.log(`[Middleware] Procesando: ${pathname}`);
+  console.log(`[Middleware] Ruta: ${pathname}`);
   
-  // PASO 1: SIEMPRE permitir recursos estáticos y rutas públicas
+  // 1. Siempre permitir recursos estáticos y rutas públicas
   if (isPublicRoute(pathname)) {
-    console.log(`[Middleware] Ruta pública permitida: ${pathname}`);
     return NextResponse.next();
   }
   
-  // PASO 2: SIEMPRE permitir acceso a setup
-  if (pathname === '/setup' || pathname.startsWith('/setup/')) {
-    console.log('[Middleware] Acceso a setup permitido siempre');
-    return NextResponse.next();
-  }
-  
-  // PASO 3: Si hay acceso de emergencia, SIEMPRE permitir el paso
-  // Esto tiene prioridad sobre todas las demás reglas
-  if (hasEmergencyAccess(request)) {
-    console.log(`[Middleware] Acceso de emergencia permitido para: ${pathname}`);
-    return NextResponse.next();
-  }
-  
-  // PASO 4: Si la app no está configurada, redirigir a setup
-  if (!isAppConfigured(request)) {
-    console.log(`[Middleware] App no configurada, redirigiendo a /setup`);
-    return NextResponse.redirect(new URL('/setup', request.url));
-  }
-  
-  // PASO 5: Si Clerk no está configurado, redirigir a login de emergencia
+  // 2. Si Clerk no está configurado, redirigir a configuración inicial
   if (!isClerkConfigured()) {
-    console.log(`[Middleware] Clerk no configurado, redirigiendo a emergency-login`);
-    // Para evitar bucles, verificamos que no estamos ya en emergency-login
-    if (pathname !== '/emergency-login') {
-      return NextResponse.redirect(new URL('/emergency-login', request.url));
-    } else {
-      // Si ya estamos en emergency-login, permitir el acceso
-      return NextResponse.next();
-    }
+    console.log(`[Middleware] Clerk no configurado, redirigiendo a configuración inicial`);
+    return NextResponse.redirect(new URL('/initial-setup', request.url));
   }
   
-  // PASO 6: Si Clerk está configurado, usar su autenticación
+  // 3. Si Clerk está configurado, usar autenticación estándar
   try {
-    // Importación dinámica para mayor robustez
     const { auth } = await import('@clerk/nextjs/server');
     const { userId } = auth();
     
-    // Si no hay usuario autenticado y la ruta requiere autenticación, redirigir a sign-in
-    if (!userId && !isPublicRoute(pathname)) {
-      // Evitar bucles verificando que no estamos ya en sign-in
-      if (pathname !== '/sign-in') {
-        return NextResponse.redirect(new URL('/sign-in', request.url));
-      }
+    // Si no hay usuario autenticado, redirigir a sign-in
+    if (!userId) {
+      console.log(`[Middleware] Usuario no autenticado, redirigiendo a sign-in`);
+      return NextResponse.redirect(new URL('/sign-in', request.url));
     }
   } catch (error) {
-    console.error('[Middleware] Error al verificar autenticación con Clerk:', error);
-    // En caso de error, redirigir a login de emergencia
-    if (pathname !== '/emergency-login') {
-      return NextResponse.redirect(new URL('/emergency-login', request.url));
-    }
+    console.error('[Middleware] Error con Clerk, redirigiendo a configuración inicial:', error);
+    return NextResponse.redirect(new URL('/initial-setup', request.url));
   }
   
-  // Permitir la solicitud por defecto
+  // 4. Si todo está bien, permitir la solicitud
   return NextResponse.next();
 }
 
