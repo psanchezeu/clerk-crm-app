@@ -285,15 +285,22 @@ export default function SetupPage() {
     setMessage('Finalizando configuración...');
     
     try {
-      // 1. Marcar como completado en localStorage
+      // 1. Marcar como completado en localStorage (usar múltiples claves para mayor seguridad)
       localStorage.setItem('setup_completed', 'true');
-      console.log('Setup marcado como completado en localStorage');
+      localStorage.setItem('crm_config_completed', 'true'); // Clave alternativa por si hay problemas
+      localStorage.setItem('setup_timestamp', Date.now().toString()); // Añadir timestamp
+      console.log('Setup marcado como completado en localStorage con múltiples claves');
       
       // 2. Intentar actualizar el estado en el servidor (pero continuar incluso si falla)
       try {
         // Llamada DIRECTA al endpoint de status con parámetro complete=true
         const response = await fetch('/api/config/status?complete=true', {
           method: 'GET',
+          cache: 'no-store', // Evitar cualquier tipo de caché
+          headers: {
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          }
         });
         
         console.log('Respuesta del servidor al marcar como completo:', await response.text());
@@ -306,26 +313,50 @@ export default function SetupPage() {
       setStatus('success');
       setMessage('¡Configuración completada! Redirigiendo...');
       
-      // 4. Esperar un momento y redireccionar usando window.location.replace
+      // 4. Crear y añadir un script para reforzar la redirección
+      // Esta es una solución adicional para asegurar la redirección
+      const redirectScript = document.createElement('script');
+      redirectScript.textContent = `
+        (function() {
+          // Asegurarnos de que el localStorage tiene las marcas de configuración completa
+          localStorage.setItem('setup_completed', 'true');
+          localStorage.setItem('crm_config_completed', 'true');
+          
+          // En 1 segundo, redirigir
+          setTimeout(function() {
+            const timestamp = Date.now();
+            console.log('Script de redirección ejecutándose:', timestamp);
+            window.location.replace('/sign-in?redirect_url=/dashboard&setup_bypass=' + timestamp);
+          }, 1000);
+          
+          // Backup: si seguimos aquí después de 2.5 segundos, intentar otra redirección
+          setTimeout(function() {
+            console.log('Redirección de respaldo ejecutándose');
+            window.location.href = '/sign-in?redirect_url=/dashboard&setup_bypass=backup';
+          }, 2500);
+        })();
+      `;
+      document.body.appendChild(redirectScript);
+      
+      // 5. Timeout como respaldo si el script no funciona
       setTimeout(() => {
         // Usar parámetro timestamp para evitar cachés y problemas de redirección
         const timestamp = Date.now();
-        console.log('Redirigiendo al login con timestamp:', timestamp);
-        
-        // Usamos window.location.replace para prevenir que el botón "atrás" del navegador
-        // pueda volver a la página de setup
+        console.log('Timeout de respaldo para redirección, timestamp:', timestamp);
         window.location.replace(`/sign-in?redirect_url=/dashboard&setup_bypass=${timestamp}`);
-      }, 1500);
+      }, 2000);
     } catch (error) {
       console.error('Error en redirección final:', error);
       
-      // 5. En caso de error, intentar redirección directa
+      // En caso de error, intentar redirección directa
       setStatus('warning');
       setMessage('Hubo un problema, pero intentaremos continuar...');
       
       setTimeout(() => {
-        window.location.replace('/sign-in?redirect_url=/dashboard');
-      }, 2000);
+        // Último intento de redirección
+        localStorage.setItem('setup_completed', 'true'); // Asegurar que está configurado
+        window.location.href = '/sign-in?redirect_url=/dashboard&emergency=true';
+      }, 1500);
     }
   };
 

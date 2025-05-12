@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SignIn } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import Script from "next/script";
 
 export default function SignInPage() {
   const [isClient, setIsClient] = useState(false);
@@ -12,11 +13,20 @@ export default function SignInPage() {
     // Indicar que estamos en el cliente
     setIsClient(true);
     
+    // Comprobar si venimos de completar la configuración
+    const setupCompleted = localStorage.getItem('setup_completed');
+    console.log('[SignIn] Estado de setup_completed:', setupCompleted);
+    
     // Verificar si las claves de Clerk están configuradas
     const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
     if (!publishableKey || publishableKey === "undefined") {
-      console.warn("Clerk publishable key not found, redirecting to setup page");
-      redirect("/setup");
+      // Solo redirigir a setup si no venimos de completar la configuración
+      if (setupCompleted !== 'true') {
+        console.warn("Clerk publishable key not found, redirecting to setup page");
+        redirect("/setup");
+      } else {
+        console.warn("Clerk key no encontrada pero setup_completed es true, no redirigiendo");
+      }
     }
     
     // Capturar errores de Clerk
@@ -62,6 +72,9 @@ export default function SignInPage() {
   try {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        {/* Script de ayuda para la redirección */}
+        <Script src="/signin-helper.js" strategy="afterInteractive" />
+        
         <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900">Iniciar sesión</h1>
