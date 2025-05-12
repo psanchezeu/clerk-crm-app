@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Script from 'next/script';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -38,10 +39,22 @@ export default function EmergencyLoginPage(): JSX.Element {
       
       if (data.success) {
         setSuccess(true);
-        // Redirigir a setup o dashboard después de un inicio exitoso
+        console.log('Inicio de sesión de emergencia exitoso. Redirigiendo a setup...');
+        
+        // Establecer en localStorage para persistencia y respaldo
+        localStorage.setItem('emergency_access', 'true');
+        localStorage.setItem('setup_completed', 'true');
+        
+        // Establecer cookies manualmente desde el cliente (respaldo adicional)
+        document.cookie = `emergency_access=true;path=/;max-age=${60 * 60 * 24};samesite=lax`;
+        document.cookie = `setup_completed=true;path=/;max-age=${60 * 60 * 24};samesite=lax`;
+        
+        // Usar un breve retraso para asegurar que las cookies se establezcan
         setTimeout(() => {
-          router.push('/setup');
-        }, 1500);
+          // Usar window.location para una redirección completa que recargue la página
+          console.log('Redirigiendo a /setup con emergency_token');
+          window.location.href = '/setup?emergency_token=' + encodeURIComponent(password);
+        }, 1000);
       } else {
         setError(data.error || 'Error al intentar iniciar sesión');
       }
@@ -54,13 +67,15 @@ export default function EmergencyLoginPage(): JSX.Element {
   };
   
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-gray-50">
-      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Modo de emergencia</h1>
-          <p className="text-gray-600">
-            Este modo permite acceder a la aplicación cuando Clerk no está configurado.
-            Úsalo solo para configurar la aplicación.
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      {/* Script de ayuda para el modo de emergencia */}
+      <Script src="/emergency-helper.js" strategy="afterInteractive" />
+      
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Acceso de emergencia</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Ingresa la contraseña de emergencia para acceder cuando Clerk no está disponible.
           </p>
         </div>
         

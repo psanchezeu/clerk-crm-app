@@ -30,11 +30,22 @@ export async function POST(req: Request) {
       });
       
       // Establecer cookie de acceso de emergencia (24 horas)
+      // Usamos httpOnly: false para permitir acceso desde JavaScript
+      // y asegurarnos que la cookie sea visible para el middleware
       response.cookies.set('emergency_access', 'true', { 
         maxAge: 60 * 60 * 24,
-        httpOnly: true,
+        httpOnly: false,
         path: '/',
-        sameSite: 'strict',
+        sameSite: 'lax', // Cambiado de strict a lax para permitir redirecciones
+        secure: process.env.NODE_ENV === 'production',
+      });
+      
+      // Agregamos una segunda cookie para duplicar el acceso y mayor compatibilidad
+      response.cookies.set('setup_completed', 'true', { 
+        maxAge: 60 * 60 * 24,
+        httpOnly: false,
+        path: '/',
+        sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
       });
       
