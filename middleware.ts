@@ -1,7 +1,6 @@
 import { authMiddleware } from "@clerk/nextjs";
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { safeConfigCheck } from './lib/config-check';
 
 // Definimos un middleware personalizado para control de configuración
 export async function middleware(request: NextRequest) {
@@ -36,22 +35,14 @@ export async function middleware(request: NextRequest) {
   }
   
   try {
-    // Verificar si la aplicación está configurada
-    const isConfigured = await safeConfigCheck();
-    
-    // Verificación adicional en localStorage (lado cliente)
-    // Esto solo se usa como respaldo y no afecta el funcionamiento del servidor
-    let clientSideConfigured = false;
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        clientSideConfigured = localStorage.getItem('setup_completed') === 'true';
-      } catch (e) {
-        // Ignorar errores de localStorage
-      }
-    }
+    // Verificar si la aplicación está configurada usando cookies en lugar de sistema de archivos
+    // para ser compatible con Edge Runtime
+    const cookies = request.cookies;
+    const setupCompletedCookie = cookies.get('setup_completed');
+    const isConfigured = setupCompletedCookie?.value === 'true';
     
     // Si no está configurada y no estamos en el setup, redirigir al setup
-    if (!isConfigured && !clientSideConfigured && !pathname.startsWith('/setup')) {
+    if (!isConfigured && !pathname.startsWith('/setup')) {
       console.log(`App no configurada, redirigiendo a /setup desde ${pathname}`);
       return NextResponse.redirect(new URL('/setup', request.url));
     }

@@ -327,6 +327,11 @@ export default function SetupPage() {
       localStorage.setItem('setup_timestamp', Date.now().toString()); // Añadir timestamp
       console.log('Setup marcado como completado en localStorage con múltiples claves');
       
+      // 1.1 Establecer una cookie para que el middleware detecte que la configuración está completa
+      // Esta cookie es fundamental para el middleware actualizado
+      document.cookie = 'setup_completed=true; path=/; max-age=31536000; SameSite=Strict';
+      console.log('Cookie setup_completed establecida para el middleware');
+      
       // 2. Intentar actualizar el estado en el servidor (pero continuar incluso si falla)
       try {
         // Llamada DIRECTA al endpoint de status con parámetro complete=true
