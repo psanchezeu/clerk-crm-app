@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { markSetupComplete } from '@/lib/config-check';
 
 export default function SetupPage() {
   // Estado para las claves de Clerk
@@ -240,10 +239,10 @@ export default function SetupPage() {
     setMessage('Finalizando configuración...');
     
     try {
-      // Marcar explícitamente que el setup está completo
-      await markSetupComplete();
+      // Crear una variable en localStorage como marcador client-side
+      localStorage.setItem('setup_completed', 'true');
       
-      // Esperar un momento para que los cambios se apliquen
+      // Esperar un breve momento y redirigir al login
       setTimeout(() => {
         // Redirigir al usuario a la página de inicio de sesión primero
         router.push('/sign-in?redirect_url=/dashboard');
