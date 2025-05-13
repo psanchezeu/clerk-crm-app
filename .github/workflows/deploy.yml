@@ -1,0 +1,108 @@
+name: Deploy Clerk CRM App
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - staging
+        - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+      
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Build and push app image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: yourusername/clerk-crm-app:latest
+          build-args: |
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+      
+      - name: Build and push nginx image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.nginx
+          push: true
+          tags: yourusername/clerk-crm-app-nginx:latest
+      
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /path/to/clerk-crm-app
+            docker-compose pull
+            docker-compose up -d
+            
+            # Verificar despliegue
+            sleep 10
+            APP_RUNNING=$(docker ps --filter "name=clerk-crm-app" --format "{{.Status}}" | grep -c "Up")
+            NGINX_RUNNING=$(docker ps --filter "name=clerk-crm-app-nginx" --format "{{.Status}}" | grep -c "Up")
+            
+            if [ "$APP_RUNNING" -ne 1 ] || [ "$NGINX_RUNNING" -ne 1 ]; then
+              echo "Error: No todos los contenedores están en ejecución"
+              exit 1
+            fi
+            
+            # Verificar que la aplicación responde
+            curl -s -o /dev/null -w "%{http_code}" localhost:56674/api/health | grep 200 > /dev/null
+            if [ $? -ne 0 ]; then
+              echo "Error: La aplicación no está respondiendo correctamente"
+              exit 1
+            fi
+            
+            echo "Despliegue completado con éxito"
+      
+      - name: Notify deployment status
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_TITLE: Despliegue de Clerk CRM App
+          SLACK_MESSAGE: ${{ job.status == 'success' && 'Despliegue completado con éxito ✅' || 'Error en el despliegue ❌' }}

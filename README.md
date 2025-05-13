@@ -35,18 +35,40 @@ Todo disponible en un entorno seguro y personalizable que te permitirá gestiona
 3. **Desplegar en hostybee.es**
 
    3.1. Clona este repositorio
+
    ```bash
    git clone https://github.com/psanchezeu/clerk-crm-app.git
    ```
 
-   3.2. Valida el proyecto en hostybee.es
+   3.2. **Método Tradicional (Manual)**
+   - Valida el proyecto en hostybee.es
    ![Validar proyecto](image.png)
-   
-   3.3. Crea el proyecto y espera a que termine el despliegue
+   - Crea el proyecto y espera a que termine el despliegue
    ![Crear proyecto](image-1.png)
-   
-   3.4. Haz clic en Lanzar y espera a que termine el despliegue
+   - Haz clic en Lanzar y espera a que termine el despliegue
    ![Lanzar proyecto](image-2.png)
+
+   3.3. **Método Automatizado (Recomendado)**
+   - Ejecuta el script de despliegue automatizado:
+
+   ```bash
+   chmod +x auto-deploy.sh
+   ./auto-deploy.sh
+   ```
+   - Este script guiará paso a paso en el proceso de configuración y despliegue:
+     - Verifica requisitos previos (Docker y Docker Compose)
+     - Solicita o carga configuraciones (Clerk API y base de datos)
+     - Valida la conexión a la base de datos
+     - Despliega la aplicación usando Docker Compose
+     - Verifica el correcto funcionamiento de la aplicación
+
+   3.4. **Despliegue por CI/CD (Para desarrollo)**
+   - Requiere configuración de GitHub Actions con los siguientes secretos:
+     - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clave pública de Clerk
+     - `CLERK_SECRET_KEY`: Clave secreta de Clerk
+     - `DATABASE_URL`: URL de conexión a la base de datos
+     - `SERVER_HOST`, `SERVER_USERNAME`, `SERVER_SSH_KEY`: Para despliegue en servidor
+   - Al hacer push a la rama principal, se ejecutará automáticamente el despliegue
 
 ## Configuración inicial
 
