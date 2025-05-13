@@ -34,7 +34,7 @@ export default function SignUpPage() {
     // Si Clerk no está configurado, redirigir al modo de emergencia
     if (!clerkConfigured) {
       console.warn("Clerk no está configurado, redirigiendo al modo de emergencia");
-      router.push("/emergency-login");
+      router.push("/");
       return;
     }
     
@@ -87,7 +87,7 @@ export default function SignUpPage() {
           <p className="mt-2 text-gray-600">
             La autenticación con Clerk no está disponible actualmente.
           </p>
-          <Link href="/emergency-login" className="mt-6 inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          <Link href="/" className="mt-6 inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
             Usar inicio de sesión de emergencia
           </Link>
         </div>
@@ -129,7 +129,7 @@ export default function SignUpPage() {
             <Link href="/setup" className="block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
               Ir a configuración
             </Link>
-            <Link href="/emergency-login" className="block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            <Link href="/" className="block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
               Usar modo de emergencia
             </Link>
           </div>
@@ -159,7 +159,7 @@ export default function SignUpPage() {
               <Link href="/setup" className="block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
                 Ir a configuración
               </Link>
-              <Link href="/emergency-login" className="block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+              <Link href="/" className="block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
                 Usar modo de emergencia
               </Link>
             </div>

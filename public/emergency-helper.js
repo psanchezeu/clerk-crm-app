@@ -18,8 +18,8 @@ function tryRecoverEmergencyAccess() {
     document.cookie = `setup_completed=true;path=/;max-age=${60 * 60 * 24};samesite=lax`;
     
     // Si estamos en la página de login de emergencia, redirigir a setup
-    if (window.location.pathname === '/emergency-login') {
-      console.log('Redirigiendo a setup desde emergency-login');
+    if (window.location.pathname === '/') {
+      console.log('Redirigiendo a setup desde página principal');
       window.location.href = '/setup?from=emergency';
     }
   }

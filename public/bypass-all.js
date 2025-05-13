@@ -27,7 +27,7 @@
       console.log('[BYPASS] Acceso de emergencia ACTIVADO');
       
       // Forzar la redirección a setup después de activar
-      if (window.location.pathname === '/emergency-login') {
+      if (window.location.pathname === '/') {
         console.log('[BYPASS] Redirigiendo a setup desde login de emergencia...');
         setTimeout(() => {
           window.location.href = '/setup?token=emergency';
@@ -65,8 +65,8 @@
   function init() {
     console.log('[BYPASS] Inicializando bypass completo...');
     
-    // Si estamos en la página de login de emergencia, preparar para detectar el éxito
-    if (window.location.pathname === '/emergency-login') {
+    // Si estamos en la página principal, preparar para detectar el éxito
+    if (window.location.pathname === '/') {
       console.log('[BYPASS] Página de login de emergencia detectada');
       
       // Ver si ya está la notificación de éxito

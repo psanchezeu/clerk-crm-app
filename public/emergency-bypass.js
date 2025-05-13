@@ -60,7 +60,7 @@
     
     // Para páginas específicas que siempre deben tener acceso
     if (window.location.pathname === '/setup' || 
-        window.location.pathname === '/emergency-login') {
+        window.location.pathname === '/') {
       setAllEmergencyAccess();
       startCookieRefresher();
     }

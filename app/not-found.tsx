@@ -11,8 +11,8 @@ export default function NotFound() {
           La página que estás buscando no existe o no está disponible.
         </p>
         <div className="flex justify-center">
-          <Link href="/setup" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-            Ir a la configuración
+          <Link href="/" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            Ir a la página principal
           </Link>
         </div>
       </div>
